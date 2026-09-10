@@ -272,6 +272,7 @@ func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, l
 		HTTPConfig: &cfg.Log.HTTP,
 	}))
 	mux.Use(appcontext.Middleware)
+	services.RegisterDropRoutes(mux, apiSrv)
 	mux.Mount("/api/", http.StripPrefix("/api", extendedSrv))
 	mux.Handle("/*", middleware.SPAHandler(ui.StaticFS))
 

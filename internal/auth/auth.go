@@ -50,6 +50,14 @@ func GetUser(c context.Context) int64 {
 	return userId
 }
 
+// WithClaims attache une identite a un contexte, comme le ferait le
+// SecurityHandler apres verification d'un jeton. Reserve aux traitements
+// serveur qui ont deja etabli par eux-memes le droit d'agir pour cet
+// utilisateur (ex. depot via un lien de partage).
+func WithClaims(ctx context.Context, claims *types.JWTClaims) context.Context {
+	return context.WithValue(ctx, authKey, claims)
+}
+
 func GetJWTUser(c context.Context) *types.JWTClaims {
 	authUser, ok := c.Value(authKey).(*types.JWTClaims)
 	if !ok {

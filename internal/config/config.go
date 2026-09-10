@@ -58,6 +58,21 @@ type ServerCmdConfig struct {
 	Cache    CacheConfig
 	Redis    RedisConfig
 	Events   EventConfig
+	Drop     DropConfig
+}
+
+// DropConfig regle le depot de fichiers via un lien de partage.
+type DropConfig struct {
+	Enable bool `default:"true" description:"Enable file drop through password-protected share links"`
+	// Taille des morceaux stockes sur Telegram, arrondie a un multiple de
+	// 16 Mio (bloc d'empreinte BLAKE3), entre 16 Mio et 2000 Mio.
+	PartSize int `default:"536870912" description:"Size in bytes of each part stored on Telegram (rounded down to a multiple of 16 MiB)"`
+	// Taille des requetes HTTP du navigateur. Doit rester sous la limite des
+	// proxys (100 Mo chez Cloudflare) ; le serveur les recolle en un morceau.
+	ChunkSize   int           `default:"33554432" description:"Size in bytes of each HTTP chunk sent by the browser"`
+	IdleTimeout time.Duration `default:"10m" description:"Abort an in-progress part after this long without data"`
+	// Nom des morceaux sur Telegram : nom du fichier (true) ou aleatoire (false).
+	ReadablePartNames bool `default:"true" description:"Name Telegram parts after the file instead of random names"`
 }
 
 type CheckCmdConfig struct {
