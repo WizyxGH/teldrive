@@ -144,6 +144,16 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 			return fmt.Errorf("failed to extract channel from creation response")
 		}
 
+		// Un canal cree herite du minuteur d'auto-suppression global du compte.
+		// Pour du stockage, cela effacerait silencieusement les fichiers a
+		// l'expiration du delai. On force donc le TTL a 0 (desactive).
+		if _, err := client.API().MessagesSetHistoryTTL(ctx, &tg.MessagesSetHistoryTTLRequest{
+			Peer:   newChannel.AsInputPeer(),
+			Period: 0,
+		}); err != nil {
+			return fmt.Errorf("failed to disable auto-delete on channel: %w", err)
+		}
+
 		return nil
 	})
 
