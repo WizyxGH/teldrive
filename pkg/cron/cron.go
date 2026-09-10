@@ -136,8 +136,8 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 		err := tgc.DeleteMessages(ctx, client, row.ChannelId, ids)
 
 		if err != nil {
-			// Un canal en erreur (supprime, bot retire...) ne doit pas bloquer
-			// le nettoyage des autres : on passe au suivant.
+			// A failing channel (deleted, bot removed...) must not block the
+			// cleanup of the others: move on to the next one.
 			c.logger.Error("cron.file_delete_failed", zap.Error(err), zap.Int64("channel_id", row.ChannelId))
 			continue
 		}

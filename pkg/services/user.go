@@ -298,9 +298,9 @@ func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
 	return &api.UserConfig{Bots: maskBotTokens(tokens), ChannelId: channelId}, nil
 }
 
-// maskBotTokens masque le secret des tokens de bot. Un token a la forme
-// "<botId>:<secret>" ; seul le botId permet d'identifier le bot, le secret
-// donne un controle total dessus et n'a aucune raison de sortir de la base.
+// maskBotTokens hides the secret part of bot tokens. A token looks like
+// "<botId>:<secret>"; the botId is enough to identify the bot, while the
+// secret grants full control over it and has no reason to leave the database.
 func maskBotTokens(tokens []string) []string {
 	masked := make([]string, len(tokens))
 	for i, t := range tokens {
