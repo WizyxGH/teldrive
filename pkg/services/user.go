@@ -295,7 +295,22 @@ func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
 	if err != nil {
 		tokens = []string{}
 	}
-	return &api.UserConfig{Bots: tokens, ChannelId: channelId}, nil
+	return &api.UserConfig{Bots: maskBotTokens(tokens), ChannelId: channelId}, nil
+}
+
+// maskBotTokens masque le secret des tokens de bot. Un token a la forme
+// "<botId>:<secret>" ; seul le botId permet d'identifier le bot, le secret
+// donne un controle total dessus et n'a aucune raison de sortir de la base.
+func maskBotTokens(tokens []string) []string {
+	masked := make([]string, len(tokens))
+	for i, t := range tokens {
+		if id, _, found := strings.Cut(t, ":"); found {
+			masked[i] = id + ":" + strings.Repeat("*", 8)
+		} else {
+			masked[i] = strings.Repeat("*", 8)
+		}
+	}
+	return masked
 }
 
 func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpdate) error {
