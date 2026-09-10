@@ -4,179 +4,499 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Shared folder</title>
+<title>Teldrive</title>
+<link rel="preload" href="/fonts/rubik.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png">
 <style>
-  :root {
-    --bg: #f6f5f2; --card: #ffffff; --ink: #1d1c1a; --muted: #6b6862; --line: #e4e1da;
-    --accent: #2f5fd0; --accent-ink: #ffffff; --ok: #1f7a4a; --err: #b3261e; --bar: #e9e6df;
+  /* Same design tokens as the teldrive UI (Material 3, OKLCH). These are the
+     UI defaults; the user's own palette is applied on top by the script below. */
+  @font-face { font-family: Rubik; font-style: normal; font-display: swap; font-weight: 100 900;
+    src: url(/fonts/rubik.woff2) format("woff2-variations"); }
+  :root, .light, [data-theme="light"] {
+    color-scheme: light;
+    --m3-background: 98.382% .00794 286.25; --m3-on-background: 22.503% .00902 255.61;
+    --m3-surface: 98.382% .00794 286.25; --m3-surface-dim: 88.735% .00951 286.2; --m3-surface-bright: 98.382% .00794 286.25;
+    --m3-surface-container-lowest: 100% 0 none; --m3-surface-container-low: 96.615% .0093 286.22;
+    --m3-surface-container: 94.811% .00935 286.22; --m3-surface-container-high: 93.196% .00814 278.63;
+    --m3-surface-container-highest: 91.482% .00943 286.21; --m3-on-surface: 22.503% .00902 255.61;
+    --m3-surface-variant: 91.432% .01792 275.63; --m3-on-surface-variant: 39.714% .01812 264.34;
+    --m3-inverse-surface: 30.917% .00937 268.36; --m3-inverse-on-surface: 95.714% .00933 286.22;
+    --m3-outline: 56.957% .01756 269.84; --m3-outline-variant: 82.706% .01729 271.2;
+    --m3-shadow: 0% 0 none; --m3-scrim: 0% 0 none;
+    --m3-primary: 48.469% .12875 256.99; --m3-on-primary: 100% 0 none;
+    --m3-primary-container: 78.971% .10628 261.23; --m3-on-primary-container: 29.812% .09877 255.17;
+    --m3-secondary: 48.363% .05294 261.59; --m3-on-secondary: 100% 0 none;
+    --m3-secondary-container: 90.249% .04688 265.49; --m3-on-secondary-container: 39.352% .05364 261.93;
+    --m3-tertiary: 49.787% .12852 322.4; --m3-on-tertiary: 100% 0 none;
+    --m3-tertiary-container: 80.155% .13302 323.64; --m3-on-tertiary-container: 31.19% .12868 320.93;
+    --m3-error: 50.603% .19265 27.702; --m3-on-error: 100% 0 none;
+    --m3-error-container: 91.825% .04177 25.226; --m3-on-error-container: 23.602% .09624 27.191;
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #151514; --card: #1f1f1d; --ink: #ecebe7; --muted: #a3a09a; --line: #34332f;
-      --accent: #7aa2ff; --accent-ink: #0d1530; --ok: #6fcf97; --err: #ff8a80; --bar: #2c2b28; }
+  .dark, [data-theme="dark"] {
+    color-scheme: dark;
+    --m3-background: 18.687% .01068 268.11; --m3-on-background: 91.482% .00943 286.21;
+    --m3-surface: 18.687% .01068 268.11; --m3-surface-dim: 18.687% .01068 268.11; --m3-surface-bright: 34.455% .00912 268.4;
+    --m3-surface-container-lowest: 16.395% .01106 268.01; --m3-surface-container-low: 22.503% .00902 255.61;
+    --m3-surface-container: 24.211% .00885 255.59; --m3-surface-container-high: 28.502% .00957 268.34;
+    --m3-surface-container-highest: 32.894% .00922 268.38; --m3-on-surface: 91.482% .00943 286.21;
+    --m3-surface-variant: 39.714% .01812 264.34; --m3-on-surface-variant: 82.706% .01729 271.2;
+    --m3-inverse-surface: 91.482% .00943 286.21; --m3-inverse-on-surface: 30.917% .00937 268.36;
+    --m3-outline: 65.61% .01731 266.22; --m3-outline-variant: 39.714% .01812 264.34;
+    --m3-shadow: 0% 0 none; --m3-scrim: 0% 0 none;
+    --m3-primary: 86.448% .06628 263.31; --m3-on-primary: 31.329% .10217 254.72;
+    --m3-primary-container: 73.666% .12462 260.16; --m3-on-primary-container: 23.887% .07891 255.09;
+    --m3-secondary: 82.794% .05139 264.24; --m3-on-secondary: 31.215% .05381 259.35;
+    --m3-secondary-container: 35.935% .05321 261.22; --m3-on-secondary-container: 85.924% .0522 264.78;
+    --m3-tertiary: 87.871% .10739 324.38; --m3-on-tertiary: 32.61% .12839 320.95;
+    --m3-tertiary-container: 75.219% .13132 323.59; --m3-on-tertiary-container: 25.614% .1227 320.34;
+    --m3-error: 83.83% .08908 26.757; --m3-on-error: 32.75% .13359 27.32;
+    --m3-error-container: 41.706% .17015 27.379; --m3-on-error-container: 91.825% .04177 25.226;
   }
+
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 800px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 1.5rem; margin: 0 0 4px; word-break: break-word; }
-  .sub { color: var(--muted); margin: 0 0 24px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-  .card h2 { font-size: 1rem; margin: 0 0 12px; }
-  .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .head h2 { margin: 0; }
-  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    border-radius: 8px; padding: 6px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
-  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  button.small { padding: 2px 8px; font-size: .85rem; }
-  button.danger { color: var(--err); }
-  button:disabled { opacity: .5; cursor: default; }
-  input, select { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
-    background: var(--bg); color: var(--ink); }
-  input[type=password] { width: 100%; max-width: 320px; }
-  form.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .msg { padding: 10px 12px; border-radius: 8px; background: var(--bar); margin-top: 12px; }
-  .msg.err { color: var(--err); }
-  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; border: 1px solid var(--line); }
-  .badge.write { border-color: var(--accent); color: var(--accent); }
-  .table { width: 100%; border-collapse: collapse; }
-  .table td { padding: 8px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
-  .table tr:first-child td { border-top: 0; }
-  .table .actions { text-align: right; white-space: nowrap; }
-  .scroll { overflow-x: auto; }
-  .crumbs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 8px; color: var(--muted); }
-  .crumbs a { color: var(--accent); text-decoration: none; cursor: pointer; }
-  ul.list { list-style: none; margin: 0; padding: 0; max-height: 380px; overflow-y: auto; }
-  ul.list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 4px; border-top: 1px solid var(--line); }
-  ul.list li:first-child { border-top: 0; }
-  ul.list .name { word-break: break-all; flex: 1; }
-  ul.list .folder { color: var(--accent); cursor: pointer; }
-  ul.list .meta { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; display: flex; gap: 8px; align-items: center; }
-  .drop { border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px; text-align: center; color: var(--muted); }
-  .drop.over { border-color: var(--accent); color: var(--ink); }
-  .queue { margin-top: 16px; }
-  .item { padding: 10px 0; border-top: 1px solid var(--line); }
-  .item .top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-  .item .fname { word-break: break-all; flex: 1; }
-  .item .state { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .item.done .state { color: var(--ok); }
-  .item.failed .state { color: var(--err); }
-  .bar { height: 6px; background: var(--bar); border-radius: 3px; margin-top: 6px; overflow: hidden; }
-  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-  .item.done .bar > div { background: var(--ok); }
-  .muted { color: var(--muted); }
-  .note { color: var(--muted); font-size: .9rem; margin: 12px 0 0; }
+  html, body { margin: 0; }
+  body {
+    background: oklch(var(--m3-surface-container)); color: oklch(var(--m3-on-surface));
+    font-family: Rubik, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px; line-height: 20px; letter-spacing: .25px; -webkit-font-smoothing: antialiased;
+  }
+  svg { width: 24px; height: 24px; fill: currentColor; flex: none; }
   [hidden] { display: none !important; }
+
+  /* typography (M3 type scale used by the UI) */
+  .headline-small { font-size: 24px; line-height: 32px; font-weight: 400; margin: 0; }
+  .title-large { font-size: 22px; line-height: 28px; font-weight: 400; }
+  .title-medium { font-size: 16px; line-height: 24px; letter-spacing: .15px; font-weight: 500; margin: 0; }
+  .body-large { font-size: 16px; line-height: 24px; letter-spacing: .5px; }
+  .body-small { font-size: 12px; line-height: 16px; letter-spacing: .4px; }
+  .label-large { font-size: 14px; line-height: 20px; letter-spacing: .1px; font-weight: 500; }
+  .variant { color: oklch(var(--m3-on-surface-variant)); }
+  .error-text { color: oklch(var(--m3-error)); }
+
+  /* layout (header as in the teldrive UI: logo + headline-small, theme toggle) */
+  .appbar { position: sticky; top: 0; z-index: 5; min-height: 64px; display: flex; align-items: center; gap: 8px; padding: 0 16px;
+    background: oklch(var(--m3-surface-container)); }
+  .appbar .brand { flex: 1; display: flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+  .appbar .brand svg { width: 24px; height: 24px; }
+  .appbar .brand span { font-size: 24px; line-height: 32px; }
+  .appbar .icon-btn { color: inherit; }
+  .appbar .icon-btn svg { width: 24px; height: 24px; }
+  main { max-width: 1040px; margin: 0 auto; padding: 8px 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 8px 4px; }
+  .page-head .overline { margin: 0 0 4px; }
+  .card { background: oklch(var(--m3-surface)); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .center-card { margin: 48px auto 0; max-width: 448px; width: 100%; align-items: center; text-align: center; gap: 24px; }
+  .tile-lg { width: 56px; height: 56px; border-radius: 4px; display: grid; place-items: center;
+    background: oklch(var(--m3-secondary-container)); color: oklch(var(--m3-on-secondary-container)); }
+  .tile-lg svg { width: 32px; height: 32px; }
+
+  /* buttons (M3: pill shape, state layer on hover) */
+  .btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 40px; min-width: 64px; padding: 0 24px; border: 0; border-radius: 9999px; cursor: pointer;
+    font: inherit; font-size: 14px; line-height: 20px; letter-spacing: .1px; font-weight: 500; text-decoration: none;
+    background: transparent; color: oklch(var(--m3-primary)); transition: box-shadow .15s; }
+  .btn svg { width: 18px; height: 18px; margin-left: -8px; }
+  .btn::before { content: ""; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity .15s; }
+  .btn:hover::before { opacity: .08; }
+  .btn:active::before { opacity: .12; }
+  .btn:focus-visible { outline: 2px solid oklch(var(--m3-primary)); outline-offset: 2px; }
+  .btn.filled { background: oklch(var(--m3-primary)); color: oklch(var(--m3-on-primary)); }
+  .btn.tonal { background: oklch(var(--m3-secondary-container)); color: oklch(var(--m3-on-secondary-container)); }
+  .btn.filled:hover, .btn.tonal:hover { box-shadow: 0 1px 3px 1px rgb(0 0 0 / .15), 0 1px 2px 0 rgb(0 0 0 / .3); }
+  .btn.outlined { border: 1px solid oklch(var(--m3-outline)); }
+  .btn.danger { color: oklch(var(--m3-error)); }
+  .btn:disabled { cursor: default; box-shadow: none; }
+  .btn.filled:disabled, .btn.tonal:disabled { background: oklch(var(--m3-on-surface) / .12); color: oklch(var(--m3-on-surface) / .38); }
+  .btn:disabled::before { display: none; }
+  .icon-btn { position: relative; overflow: hidden; width: 40px; height: 40px; border: 0; border-radius: 9999px; padding: 0;
+    display: inline-grid; place-items: center; background: transparent; color: oklch(var(--m3-on-surface-variant)); cursor: pointer; }
+  .icon-btn svg { width: 20px; height: 20px; }
+  .icon-btn::before { content: ""; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity .15s; }
+  .icon-btn:hover::before { opacity: .08; }
+  .icon-btn:active::before { opacity: .12; }
+  .icon-btn.danger { color: oklch(var(--m3-error)); }
+
+  /* badge (same as the UI's small pills) */
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px 2px 8px; border-radius: 9999px;
+    font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: .5px;
+    background: oklch(var(--m3-surface-container-high)); color: oklch(var(--m3-on-surface-variant)); }
+  .chip svg { width: 14px; height: 14px; }
+  .chip.write { background: oklch(var(--m3-secondary-container)); color: oklch(var(--m3-on-secondary-container)); }
+
+  /* text fields */
+  .field { display: flex; flex-direction: column; gap: 4px; text-align: left; width: 100%; }
+  .field label { font-size: 12px; line-height: 16px; letter-spacing: .4px; color: oklch(var(--m3-on-surface-variant)); padding-left: 4px; }
+  .field input, .field select { height: 48px; padding: 0 16px; border-radius: 8px; font: inherit; font-size: 16px; letter-spacing: .5px;
+    color: oklch(var(--m3-on-surface)); background: transparent; border: 1px solid oklch(var(--m3-outline)); outline: none; }
+  .field input:focus, .field select:focus { border: 2px solid oklch(var(--m3-primary)); padding: 0 15px; }
+  .field select option { background: oklch(var(--m3-surface-container-high)); color: oklch(var(--m3-on-surface)); }
+  .form-row { display: flex; gap: 12px; align-items: flex-end; width: 100%; }
+
+  /* breadcrumb: pills, as in the UI */
+  .crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-height: 40px; }
+  .crumbs .btn { height: 32px; min-width: 0; padding: 0 12px; font-size: 12px; line-height: 16px; letter-spacing: .5px;
+    color: oklch(var(--m3-on-surface-variant)); }
+  .crumbs .btn.current { background: oklch(var(--m3-surface-container-high)); color: oklch(var(--m3-on-surface)); }
+  .crumbs svg { width: 16px; height: 16px; color: oklch(var(--m3-on-surface-variant)); }
+
+  /* file table: one line per item, name / size / date, 56px rows as in the UI */
+  .files .row { min-height: 56px; padding: 8px 8px 8px 12px; gap: 12px; }
+  .files .tile { width: 32px; height: 32px; border-radius: 8px;
+    background: oklch(var(--m3-secondary-container)); color: oklch(var(--m3-on-secondary-container)); }
+  .files .tile svg { width: 20px; height: 20px; }
+  .files .col-name { flex: 1; min-width: 0; font-size: 16px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files .col-size { width: 96px; flex: none; }
+  .files .col-date { width: 200px; flex: none; }
+  .files .col-act { width: 40px; flex: none; display: flex; justify-content: center; }
+
+  /* lists */
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .row { position: relative; display: flex; align-items: center; gap: 16px; min-height: 56px; padding: 8px 8px 8px 12px; border-radius: 12px; }
+  .row.clickable { cursor: pointer; }
+  .row.clickable::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: oklch(var(--m3-on-surface)); opacity: 0; transition: opacity .15s; pointer-events: none; }
+  .row.clickable:hover::before { opacity: .08; }
+  .tile { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+    background: oklch(var(--m3-surface-container-high)); color: oklch(var(--m3-on-surface-variant)); }
+  .tile svg { width: 22px; height: 22px; }
+  .tile.accent { background: oklch(var(--m3-secondary-container)); color: oklch(var(--m3-on-secondary-container)); }
+  .row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .row-title { font-size: 16px; line-height: 24px; letter-spacing: .5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-sub { font-size: 14px; line-height: 20px; color: oklch(var(--m3-on-surface-variant)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-actions { display: flex; gap: 0; }
+  .scroll-list { max-height: 440px; overflow-y: auto; margin: 0 -8px; padding: 0 8px; }
+  .empty { padding: 24px 0; text-align: center; color: oklch(var(--m3-on-surface-variant)); }
+
+  /* upload */
+  .dropzone { border: 2px dashed oklch(var(--m3-outline-variant)); border-radius: 16px; padding: 32px 16px;
+    background: oklch(var(--m3-surface-container-low)); display: flex; flex-direction: column; align-items: center; gap: 12px;
+    text-align: center; transition: background .15s, border-color .15s; }
+  .dropzone > svg { width: 40px; height: 40px; color: oklch(var(--m3-primary)); }
+  .dropzone.over { border-color: oklch(var(--m3-primary)); background: oklch(var(--m3-primary) / .08); }
+  .progress { height: 4px; border-radius: 2px; background: oklch(var(--m3-secondary-container)); overflow: hidden; margin-top: 8px; }
+  .progress > div { height: 100%; width: 0; border-radius: 2px; background: oklch(var(--m3-primary)); transition: width .2s; }
+  .job.done .tile { background: oklch(var(--m3-secondary-container)); color: oklch(var(--m3-on-secondary-container)); }
+  .job.failed .row-sub { color: oklch(var(--m3-error)); }
+
+  /* dialog */
+  dialog { border: 0; padding: 24px; border-radius: 28px; min-width: 312px; max-width: min(560px, calc(100vw - 48px));
+    background: oklch(var(--m3-surface-container-high)); color: oklch(var(--m3-on-surface)); }
+  dialog::backdrop { background: rgb(0 0 0 / .32); }
+  dialog form { display: flex; flex-direction: column; gap: 16px; }
+  dialog .dlg-text { margin: 0; color: oklch(var(--m3-on-surface-variant)); white-space: pre-line; }
+  dialog .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .radio-group { display: flex; flex-direction: column; gap: 4px; }
+  .radio { display: flex; align-items: flex-start; gap: 12px; padding: 8px; border-radius: 12px; cursor: pointer; }
+  .radio input { accent-color: oklch(var(--m3-primary)); width: 20px; height: 20px; margin: 2px 0 0; }
+
+  /* snackbar */
+  .snackbar { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100vw - 32px);
+    padding: 14px 16px; border-radius: 4px; background: oklch(var(--m3-inverse-surface)); color: oklch(var(--m3-inverse-on-surface));
+    box-shadow: 0 4px 8px 3px rgb(0 0 0 / .15), 0 1px 3px 0 rgb(0 0 0 / .3); z-index: 10; }
+
+  @media (max-width: 600px) {
+    main { padding: 8px 12px 32px; }
+    .card { padding: 16px; }
+    .form-row { flex-direction: column; align-items: stretch; }
+    /* link rows carry four actions: put them under the text */
+    .link-row { flex-wrap: wrap; }
+    .link-row .row-text { flex-basis: calc(100% - 56px); }
+    .link-row .row-title, .link-row .row-sub { white-space: normal; }
+    .link-row .row-actions { width: 100%; justify-content: flex-end; margin-top: -4px; }
+    .files .col-date { display: none; }
+    .files .col-size { width: auto; }
+    .appbar .brand span { display: none; }
+  }
 </style>
+<script>
+  // Follow the teldrive UI settings stored for this origin: theme (light, dark
+  // or system) and the palette generated from the chosen accent color.
+  (function () {
+    var root = document.documentElement, theme = 'system';
+    try { theme = JSON.parse(localStorage.getItem('theme') || '"system"'); } catch (e) {}
+    if (theme !== 'light' && theme !== 'dark') {
+      theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    root.classList.add(theme);
+    try {
+      var scheme = JSON.parse(localStorage.getItem('colorScheme') || 'null');
+      if (scheme && scheme.cssVars) {
+        var style = document.createElement('style');
+        style.textContent = Object.keys(scheme.cssVars).map(function (sel) {
+          return sel + '{' + scheme.cssVars[sel] + '}';
+        }).join('\n');
+        document.head.appendChild(style);
+      }
+    } catch (e) {}
+  })();
+</script>
 </head>
 <body>
+<header class="appbar">
+  <div class="brand"><span data-icon="logo"></span><span>Teldrive</span></div>
+  <button class="icon-btn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme"></button>
+</header>
+
 <main>
-  <h1 id="title">Shared folder</h1>
-  <p class="sub" id="subtitle">Loading…</p>
+  <div class="page-head" id="head" hidden>
+    <div>
+      <p class="overline body-small variant">Shared folder</p>
+      <h1 class="headline-small" id="title"></h1>
+      <p class="variant" id="subtitle" style="margin:4px 0 0"></p>
+    </div>
+    <span class="chip" id="level" hidden></span>
+  </div>
+
+  <section class="card center-card" id="closed" hidden>
+    <div class="tile-lg"><span data-icon="info"></span></div>
+    <p class="body-large" id="closedMsg" style="margin:0"></p>
+  </section>
 
   <section class="card" id="owner" hidden>
-    <h2>Access to this folder</h2>
-    <p class="muted" style="margin-top:0">Each link has its own password and access level. Give read-only links to some people and writable links to others.</p>
-    <div class="scroll"><table class="table" id="links"></table></div>
-    <form class="row" id="newLink" style="margin-top:16px">
-      <select id="nlLevel" aria-label="Access level">
-        <option value="read">Read-only</option>
-        <option value="write">Read &amp; write</option>
-      </select>
-      <input type="password" id="nlPass" placeholder="Password" autocomplete="new-password">
-      <input type="date" id="nlExp" aria-label="Expiry date (optional)" title="Expiry date (optional)">
-      <button class="primary" type="submit">Create link</button>
-    </form>
-    <div class="msg err" id="ownerErr" hidden></div>
-    <p class="note">Read-only: browse and download. Read &amp; write: also upload files, create folders and rename (password required).<br>
-      Manage these links here only: the teldrive share dialog changes the password of <em>every</em> link of the folder, and deleting the share there deletes them all.</p>
-  </section>
-
-  <section class="card" id="closed" hidden>
-    <p id="closedMsg" style="margin:0"></p>
-  </section>
-
-  <section class="card" id="unlock" hidden>
-    <h2>This folder is password-protected</h2>
-    <form class="row" id="unlockForm">
-      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
-      <button class="primary" type="submit">Open</button>
-    </form>
-    <div class="msg err" id="unlockErr" hidden></div>
-  </section>
-
-  <section id="app" hidden>
-    <div class="card">
-      <div class="head">
-        <h2>Content <span class="badge" id="level"></span></h2>
-        <div>
-          <button type="button" id="mkdir" hidden>New folder</button>
-          <a class="btn" id="browse" target="_blank" rel="noopener">Open viewer</a>
-        </div>
+    <div class="card-head">
+      <div>
+        <h2 class="title-medium">Access to this folder</h2>
+        <p class="variant" style="margin:4px 0 0">Each link has its own password and access level. Only you can see this section.</p>
       </div>
-      <nav class="crumbs" id="crumbs"></nav>
-      <ul class="list" id="list"></ul>
-      <p class="muted" id="empty" hidden>This folder is empty.</p>
+      <button class="btn tonal" id="newLink" type="button"><span data-icon="add"></span>New link</button>
     </div>
+    <ul class="list" id="links"></ul>
+    <p class="body-small variant" style="margin:0">Read-only links let people browse and download. Read &amp; write links also let them upload, create folders and rename, and always need a password.
+      Manage links here only: the teldrive share dialog changes the password of every link of the folder, and removing the share there deletes them all.</p>
+  </section>
 
-    <div class="card" id="uploader" hidden>
-      <h2>Upload to <span id="target"></span></h2>
-      <div class="drop" id="dropzone">
-        <p>Drop files here</p>
-        <p><button class="primary" id="pick" type="button">Choose files</button></p>
-        <input type="file" id="files" multiple hidden>
-      </div>
-      <div class="queue" id="queue"></div>
+  <section class="card center-card" id="gate" hidden>
+    <div class="tile-lg"><span data-icon="lock"></span></div>
+    <div>
+      <h2 class="title-medium">Password required</h2>
+      <p class="variant" style="margin:4px 0 0">Enter the password you received with this link.</p>
     </div>
+    <form id="gateForm" style="display:flex;flex-direction:column;gap:16px;width:100%">
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+      </div>
+      <p class="error-text body-small" id="gateErr" style="margin:-8px 0 0;text-align:left" hidden>Wrong password.</p>
+      <button class="btn filled" type="submit">Open</button>
+    </form>
+  </section>
+
+  <section class="card" id="content" hidden>
+    <div class="card-head">
+      <nav class="crumbs" id="crumbs" aria-label="Path"></nav>
+      <div class="actions">
+        <button class="btn tonal" id="mkdir" type="button" hidden><span data-icon="newFolder"></span>New folder</button>
+        <a class="btn" id="viewer" target="_blank" rel="noopener"><span data-icon="openNew"></span>Open viewer</a>
+      </div>
+    </div>
+    <div class="scroll-list"><ul class="list files" id="list"></ul></div>
+    <p class="empty" id="empty" hidden>This folder is empty.</p>
+  </section>
+
+  <section class="card" id="uploader" hidden>
+    <h2 class="title-medium">Upload to <span id="target"></span></h2>
+    <div class="dropzone" id="dropzone">
+      <span data-icon="cloudUpload"></span>
+      <span class="body-large">Drag and drop files here</span>
+      <button class="btn filled" id="pick" type="button"><span data-icon="upload"></span>Choose files</button>
+      <input type="file" id="files" multiple hidden>
+    </div>
+    <ul class="list" id="queue"></ul>
   </section>
 </main>
 
+<dialog id="dlg">
+  <form method="dialog" id="dlgForm">
+    <h2 class="headline-small" id="dlgTitle"></h2>
+    <p class="dlg-text" id="dlgText"></p>
+    <div id="dlgFields" style="display:flex;flex-direction:column;gap:16px"></div>
+    <p class="error-text body-small" id="dlgErr" style="margin:0" hidden></p>
+    <div class="dlg-actions">
+      <!-- type=button: Enter must submit (OK), not hit the first button. -->
+      <button class="btn" type="button" id="dlgCancel">Cancel</button>
+      <button class="btn" type="submit" value="ok" id="dlgOk">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="snackbar" id="snack" role="status" hidden></div>
+
 <script>
 (() => {
+  // Icons: the teldrive UI logo and theme icons (256 grid), Material Symbols otherwise.
+  const ICONS = {
+    logo: { v: '0 0 256 256', d: 'M228.88 26.19a9 9 0 0 0-9.16-1.57L17.06 103.93a14.22 14.22 0 0 0 2.43 27.21L72 141.45V200a15.92 15.92 0 0 0 10 14.83a15.91 15.91 0 0 0 17.51-3.73l25.32-26.26L165 220a15.88 15.88 0 0 0 10.51 4a16.3 16.3 0 0 0 5-.79a15.85 15.85 0 0 0 10.67-11.63L231.77 35a9 9 0 0 0-2.89-8.81M175.53 208l-82.68-72.5l119-85.29Z' },
+    sun: { v: '0 0 256 256', d: 'M120 40V16a8 8 0 0 1 16 0v24a8 8 0 0 1-16 0m72 88a64 64 0 1 1-64-64a64.07 64.07 0 0 1 64 64m-16 0a48 48 0 1 0-48 48a48.05 48.05 0 0 0 48-48M58.34 69.66a8 8 0 0 0 11.32-11.32l-16-16a8 8 0 0 0-11.32 11.32Zm0 116.68l-16 16a8 8 0 0 0 11.32 11.32l16-16a8 8 0 0 0-11.32-11.32M192 72a8 8 0 0 0 5.66-2.34l16-16a8 8 0 0 0-11.32-11.32l-16 16A8 8 0 0 0 192 72m5.66 114.34a8 8 0 0 0-11.32 11.32l16 16a8 8 0 0 0 11.32-11.32ZM48 128a8 8 0 0 0-8-8H16a8 8 0 0 0 0 16h24a8 8 0 0 0 8-8m80 80a8 8 0 0 0-8 8v24a8 8 0 0 0 16 0v-24a8 8 0 0 0-8-8m112-88h-24a8 8 0 0 0 0 16h24a8 8 0 0 0 0-16' },
+    moon: 'M10 6a8 8 0 0 0 11.955 6.956C21.474 18.03 17.2 22 12 22C6.477 22 2 17.523 2 12c0-5.2 3.97-9.474 9.044-9.955A7.96 7.96 0 0 0 10 6m-6 6a8 8 0 0 0 8 8a8 8 0 0 0 6.957-4.045Q18.482 16 18 16C12.477 16 8 11.523 8 6q0-.481.045-.957A8 8 0 0 0 4 12m14.164-9.709L19 2.5v1l-.836.209a2 2 0 0 0-1.455 1.455L16.5 6h-1l-.209-.836a2 2 0 0 0-1.455-1.455L13 3.5v-1l.836-.209A2 2 0 0 0 15.29.836L15.5 0h1l.209.836a2 2 0 0 0 1.455 1.455m5 5L24 7.5v1l-.836.209a2 2 0 0 0-1.455 1.455L21.5 11h-1l-.209-.836a2 2 0 0 0-1.455-1.455L18 8.5v-1l.836-.209a2 2 0 0 0 1.455-1.455L20.5 5h1l.209.836a2 2 0 0 0 1.455 1.455',
+    folder: 'M4 20q-.825 0-1.412-.587T2 18V6q0-.825.588-1.412T4 4h6l2 2h8q.825 0 1.413.588T22 8v10q0 .825-.587 1.413T20 20zm0-2h16V8h-8.825l-2-2H4zm0 0V6z',
+    file: 'M6 22q-.825 0-1.412-.587T4 20V4q0-.825.588-1.412T6 2h8l6 6v12q0 .825-.587 1.413T18 22zm7-13V4H6v16h12V9z',
+    upload: 'M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z',
+    cloudUpload: 'M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z',
+    newFolder: 'M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z',
+    edit: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+    copy: 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
+    delete: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
+    lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+    key: 'M21 10h-8.35A5.99 5.99 0 0 0 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6a5.99 5.99 0 0 0 5.65-4H13l2 2 2-2 2 2 4-4.04L21 10zM7 15c-1.65 0-3-1.35-3-3s1.35-3 3-3 3 1.35 3 3-1.35 3-3 3z',
+    swap: 'M6.99 11 3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z',
+    visibility: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
+    openNew: 'M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',
+    close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+    chevron: 'M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z',
+    check: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z',
+    add: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
+    info: 'M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
+  };
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function icon(name) {
+    const def = typeof ICONS[name] === 'string' ? { v: '0 0 24 24', d: ICONS[name] } : ICONS[name];
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('viewBox', def.v);
+    svg.setAttribute('aria-hidden', 'true');
+    const p = document.createElementNS(SVGNS, 'path');
+    p.setAttribute('d', def.d);
+    svg.append(p);
+    return svg;
+  }
+  document.querySelectorAll('[data-icon]').forEach((n) => n.replaceWith(icon(n.dataset.icon)));
+
+  // Theme toggle, sharing the 'theme' setting with the teldrive UI.
+  const themeBtn = document.getElementById('themeBtn');
+  const isDark = () => document.documentElement.classList.contains('dark');
+  const paintThemeBtn = () => themeBtn.replaceChildren(icon(isDark() ? 'moon' : 'sun'));
+  themeBtn.onclick = () => {
+    const next = isDark() ? 'light' : 'dark';
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(next);
+    try { localStorage.setItem('theme', JSON.stringify(next)); } catch {}
+    paintThemeBtn();
+  };
+  paintThemeBtn();
+
   const shareId = location.pathname.split('/').filter(Boolean).pop();
   const api = `/api/drop/${encodeURIComponent(shareId)}`;
   const sharesApi = `/api/shares/${encodeURIComponent(shareId)}`;
   const $ = (id) => document.getElementById(id);
+  const show = (id, on = true) => { $(id).hidden = !on; };
   let info = null, auth = null, cwd = '/', busy = false;
   const queue = [];
 
+  const el = (tag, props = {}, ...kids) => {
+    const e = Object.assign(document.createElement(tag), props);
+    e.append(...kids.filter((k) => k !== null && k !== undefined && k !== ''));
+    return e;
+  };
   const fmt = (n) => {
     if (n == null) return '';
     const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
     while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
     return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
   };
-  const date = (d) => new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  // Same date formats as the UI ("Sep 9, 2026, 8:04 PM").
+  const day = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const stamp = (d) => new Date(d).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const basic = (pw) => 'Basic ' + btoa(String.fromCharCode(...new TextEncoder().encode('drop:' + pw)));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const show = (id, on = true) => { $(id).hidden = !on; };
   const headers = (extra = {}) => (auth ? { Authorization: auth, ...extra } : extra);
-  const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+  async function json(res) { try { return await res.json(); } catch { return {}; } }
 
-  async function json(res) {
-    try { return await res.json(); } catch { return {}; }
+  function iconButton(name, label, onClick, danger) {
+    const b = el('button', { type: 'button', className: 'icon-btn' + (danger ? ' danger' : ''), title: label });
+    b.setAttribute('aria-label', label);
+    b.append(icon(name));
+    b.onclick = (e) => { e.stopPropagation(); onClick(); };
+    return b;
   }
-  function closed(text) { $('closedMsg').textContent = text; show('closed'); }
+
+  let snackTimer = null;
+  function snack(text) {
+    const s = $('snack');
+    s.textContent = text;
+    s.hidden = false;
+    clearTimeout(snackTimer);
+    snackTimer = setTimeout(() => (s.hidden = true), 4000);
+  }
+
+  // M3 dialog. fields: [{name, label, type, value, options:[{value,label,hint}], required}]
+  function dialog({ title, text = '', fields = [], ok = 'OK', danger = false, validate }) {
+    const dlg = $('dlg');
+    $('dlgTitle').textContent = title;
+    $('dlgText').textContent = text;
+    show('dlgText', !!text);
+    show('dlgErr', false);
+    const box = $('dlgFields');
+    box.replaceChildren();
+    for (const f of fields) {
+      if (f.type === 'radio') {
+        const group = el('div', { className: 'radio-group', role: 'radiogroup' });
+        for (const o of f.options) {
+          const input = el('input', { type: 'radio', name: f.name, value: o.value, checked: o.value === f.value });
+          group.append(el('label', { className: 'radio' }, input,
+            el('span', {}, el('span', { className: 'label-large', textContent: o.label }), el('br'),
+              el('span', { className: 'body-small variant', textContent: o.hint || '' }))));
+        }
+        box.append(group);
+        continue;
+      }
+      const id = 'f_' + f.name;
+      const input = el('input', { id, name: f.name, type: f.type || 'text', value: f.value || '', required: !!f.required });
+      if (f.type === 'password') input.autocomplete = 'new-password';
+      box.append(el('div', { className: 'field' }, el('label', { htmlFor: id, textContent: f.label }), input));
+    }
+    const okBtn = $('dlgOk');
+    okBtn.textContent = ok;
+    okBtn.className = 'btn' + (danger ? ' danger' : '');
+    return new Promise((resolve) => {
+      const form = $('dlgForm');
+      $('dlgCancel').onclick = () => dlg.close('cancel');
+      form.onsubmit = (e) => {
+        const values = {};
+        for (const f of fields) {
+          values[f.name] = f.type === 'radio'
+            ? (form.querySelector(`input[name="${f.name}"]:checked`) || {}).value
+            : form.elements[f.name].value;
+        }
+        const err = validate && validate(values);
+        if (err) { e.preventDefault(); $('dlgErr').textContent = err; show('dlgErr'); return; }
+        dlg.returnValue = 'ok';
+        dlg._values = values;
+      };
+      dlg.onclose = () => resolve(dlg.returnValue === 'ok' ? (dlg._values || {}) : null);
+      dlg.returnValue = '';
+      dlg._values = null;
+      dlg.showModal();
+      const first = box.querySelector('input:not([type=radio])');
+      if (first) first.select();
+    });
+  }
+
+  function closed(text) {
+    $('closedMsg').textContent = text;
+    show('closed');
+  }
 
   async function init() {
     const res = await fetch(api, { credentials: 'same-origin' });
     const body = await json(res);
-    if (!res.ok) {
-      $('subtitle').textContent = '';
-      return closed(res.status === 404 ? 'This link does not exist or has expired.' : (body.error || 'Error.'));
-    }
+    if (!res.ok) return closed(res.status === 404 ? 'This link does not exist or has expired.' : (body.error || 'Something went wrong.'));
     info = body;
-    document.title = info.name;
+    document.title = `${info.name} · Teldrive`;
     $('title').textContent = info.name;
-    $('subtitle').textContent = info.expiresAt ? `Link valid until ${new Date(info.expiresAt).toLocaleString()}` : '';
-    $('browse').href = `/share/${encodeURIComponent(shareId)}`;
+    $('subtitle').textContent = info.expiresAt ? `Link valid until ${day(info.expiresAt)}` : '';
+    show('subtitle', !!info.expiresAt);
+    show('head');
+    $('viewer').href = `/share/${encodeURIComponent(shareId)}`;
     if (info.isOwner) loadLinks();
-    if (!info.folder) return closed('This link points to a single file: open it in the viewer.');
+    if (!info.folder) return closed('This link points to a single file. Open it in the viewer.');
 
     if (!info.protected) return open(null);
     let saved = null;
     try { saved = sessionStorage.getItem('drop:' + shareId); } catch {}
     if (saved && await tryUnlock(saved)) return;
-    show('unlock');
+    show('gate');
     $('password').focus();
   }
 
@@ -185,74 +505,92 @@
     show('owner');
     const res = await fetch(`${api}/links`, { credentials: 'same-origin' });
     const links = await json(res);
-    const table = $('links');
-    table.replaceChildren();
-    if (!res.ok) return ownerError(links.error);
+    const list = $('links');
+    list.replaceChildren();
+    if (!res.ok) return snack(links.error || 'Could not load the links.');
     for (const l of links) {
       const url = `${location.origin}/drop/${l.id}`;
-      const level = el('span', { className: 'badge' + (l.writable ? ' write' : ''), textContent: l.writable ? 'Read & write' : 'Read-only' });
-      const details = [l.protected ? 'password' : 'no password', l.expiresAt ? `expires ${date(l.expiresAt)}` : 'no expiry'].join(' · ');
-      const copy = el('button', { type: 'button', className: 'small', textContent: 'Copy link' });
-      copy.onclick = async () => {
-        try { await navigator.clipboard.writeText(url); copy.textContent = 'Copied'; }
-        catch { prompt('Copy this link:', url); }
-        setTimeout(() => (copy.textContent = 'Copy link'), 1500);
-      };
-      const toggle = el('button', { type: 'button', className: 'small', textContent: l.writable ? 'Make read-only' : 'Allow writing' });
-      toggle.onclick = () => editLink(l.id, { writable: !l.writable }, !l.writable && !l.protected);
-      const pass = el('button', { type: 'button', className: 'small', textContent: 'Password' });
-      pass.onclick = () => {
-        const p = prompt('New password for this link (at least 4 characters):');
-        if (p) editLink(l.id, { password: p });
-      };
-      const revoke = el('button', { type: 'button', className: 'small danger', textContent: 'Revoke' });
-      revoke.onclick = async () => {
-        const self = l.id === shareId ? '\n\nThis is the link of the page you are on: it will stop working.' : '';
-        if (!confirm('Revoke this link? People using it will lose access.' + self)) return;
-        const r = await fetch(`${api}/links/${l.id}`, { method: 'DELETE', credentials: 'same-origin' });
-        if (!r.ok) return ownerError((await json(r)).error);
-        if (l.id === shareId) return location.reload();
-        loadLinks();
-      };
-      const here = l.id === shareId ? el('span', { className: 'muted', textContent: ' (this page)' }) : '';
-      table.append(el('tr', {},
-        el('td', {}, level, here),
-        el('td', { className: 'muted', textContent: details }),
-        el('td', { className: 'actions' }, copy, ' ', toggle, ' ', pass, ' ', revoke)));
+      const sub = [l.protected ? 'Password' : 'No password', l.expiresAt ? `Expires ${day(l.expiresAt)}` : 'No expiry'];
+      if (l.id === shareId) sub.push('This page');
+      const tile = el('span', { className: 'tile' + (l.writable ? ' accent' : '') });
+      tile.append(icon(l.writable ? 'edit' : 'visibility'));
+      list.append(el('li', { className: 'row link-row' }, tile,
+        el('span', { className: 'row-text' },
+          el('span', { className: 'row-title', textContent: l.writable ? 'Read & write' : 'Read-only' }),
+          el('span', { className: 'row-sub', textContent: sub.join(' · ') })),
+        el('span', { className: 'row-actions' },
+          iconButton('copy', 'Copy link', async () => {
+            try { await navigator.clipboard.writeText(url); snack('Link copied'); }
+            catch { await dialog({ title: 'Copy this link', fields: [{ name: 'url', label: 'Link', value: url }] }); }
+          }),
+          iconButton('swap', l.writable ? 'Make read-only' : 'Allow writing', () => toggleLink(l)),
+          iconButton('key', 'Change password', () => changePassword(l)),
+          iconButton('delete', 'Revoke', () => revokeLink(l), true))));
     }
   }
 
-  async function editLink(id, patch, needsPassword) {
-    if (needsPassword) {
-      const p = prompt('A writable link needs a password. Choose one (at least 4 characters):');
-      if (!p) return;
-      patch.password = p;
-    }
+  async function patchLink(id, patch) {
     const r = await fetch(`${api}/links/${id}`, { method: 'PATCH', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
-    if (!r.ok) return ownerError((await json(r)).error);
-    if (id === shareId) return location.reload();
+    if (!r.ok) { snack((await json(r)).error || 'Update failed.'); return false; }
+    if (id === shareId) { location.reload(); return true; }
+    loadLinks();
+    return true;
+  }
+
+  const passwordRule = (v) => (v.password && [...v.password].length < 4 ? 'The password needs at least 4 characters.' : '');
+
+  async function toggleLink(l) {
+    const patch = { writable: !l.writable };
+    if (!l.writable && !l.protected) {
+      const v = await dialog({ title: 'Allow writing', text: 'A read & write link needs a password.',
+        fields: [{ name: 'password', label: 'Password', type: 'password', required: true }], ok: 'Allow writing', validate: passwordRule });
+      if (!v) return;
+      patch.password = v.password;
+    }
+    if (await patchLink(l.id, patch)) snack(patch.writable ? 'Link can now write' : 'Link is now read-only');
+  }
+
+  async function changePassword(l) {
+    const v = await dialog({ title: 'Change password', text: 'People using this link will need the new password.',
+      fields: [{ name: 'password', label: 'New password', type: 'password', required: true }], ok: 'Save', validate: passwordRule });
+    if (v && await patchLink(l.id, { password: v.password })) snack('Password changed');
+  }
+
+  async function revokeLink(l) {
+    const self = l.id === shareId ? '\n\nThis is the link of this page: it will stop working.' : '';
+    const v = await dialog({ title: 'Revoke link?', text: 'People using this link will lose access.' + self, ok: 'Revoke', danger: true });
+    if (!v) return;
+    const r = await fetch(`${api}/links/${l.id}`, { method: 'DELETE', credentials: 'same-origin' });
+    if (!r.ok) return snack((await json(r)).error || 'Could not revoke the link.');
+    if (l.id === shareId) return location.reload();
+    snack('Link revoked');
     loadLinks();
   }
 
-  function ownerError(text) {
-    $('ownerErr').textContent = text || 'Error.';
-    show('ownerErr');
-    setTimeout(() => show('ownerErr', false), 6000);
-  }
-
-  $('newLink').onsubmit = async (e) => {
-    e.preventDefault();
-    const writable = $('nlLevel').value === 'write';
-    const password = $('nlPass').value;
-    if (writable && !password) return ownerError('A writable link needs a password.');
-    const exp = $('nlExp').value;
-    const body = { writable, password, expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : '' };
+  $('newLink').onclick = async () => {
+    const v = await dialog({
+      title: 'New link',
+      fields: [
+        { name: 'level', type: 'radio', value: 'read', options: [
+          { value: 'read', label: 'Read-only', hint: 'Browse and download' },
+          { value: 'write', label: 'Read & write', hint: 'Also upload, create folders and rename' }] },
+        { name: 'password', label: 'Password (required for read & write)', type: 'password' },
+        { name: 'expires', label: 'Expiry date (optional)', type: 'date' },
+      ],
+      ok: 'Create',
+      validate: (v) => (v.level === 'write' && !v.password ? 'A read & write link needs a password.' : passwordRule(v)),
+    });
+    if (!v) return;
+    const body = { writable: v.level === 'write', password: v.password,
+      expiresAt: v.expires ? new Date(v.expires + 'T23:59:59').toISOString() : '' };
     const r = await fetch(`${api}/links`, { method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!r.ok) return ownerError((await json(r)).error);
-    $('nlPass').value = ''; $('nlExp').value = '';
+    const created = await json(r);
+    if (!r.ok) return snack(created.error || 'Could not create the link.');
     loadLinks();
+    try { await navigator.clipboard.writeText(`${location.origin}/drop/${created.id}`); snack('Link created and copied'); }
+    catch { snack('Link created'); }
   };
 
   // ---- visitor ----
@@ -267,23 +605,22 @@
 
   async function open(a) {
     auth = a;
-    show('unlock', false);
-    show('app');
+    show('gate', false);
     const w = info.writable;
-    $('level').textContent = w ? 'read & write' : 'read-only';
-    $('level').className = 'badge' + (w ? ' write' : '');
+    const chip = $('level');
+    chip.replaceChildren(icon(w ? 'edit' : 'visibility'), document.createTextNode(w ? 'Read & write' : 'Read-only'));
+    chip.className = 'chip' + (w ? ' write' : '');
+    show('level');
+    show('content');
     show('mkdir', w);
     show('uploader', w);
     await openDir('/');
   }
 
-  $('unlockForm').onsubmit = async (e) => {
+  $('gateForm').onsubmit = async (e) => {
     e.preventDefault();
-    show('unlockErr', false);
-    if (!(await tryUnlock($('password').value))) {
-      $('unlockErr').textContent = 'Wrong password.';
-      show('unlockErr');
-    }
+    show('gateErr', false);
+    if (!(await tryUnlock($('password').value))) show('gateErr');
   };
 
   async function openDir(p) {
@@ -296,15 +633,15 @@
     const items = (body.items || []).sort((a, b) => (a.type === b.type ? 0 : a.type === 'folder' ? -1 : 1));
     for (const it of items) {
       const isDir = it.type === 'folder';
-      const name = el('span', { className: 'name' + (isDir ? ' folder' : ''), textContent: (isDir ? '📁 ' : '') + it.name });
-      if (isDir) name.onclick = () => openDir((p === '/' ? '' : p) + '/' + it.name);
-      const meta = el('span', { className: 'meta', textContent: isDir ? '' : fmt(it.size) });
-      if (info.writable) {
-        const ren = el('button', { type: 'button', className: 'small', textContent: 'Rename' });
-        ren.onclick = () => rename(it);
-        meta.append(ren);
-      }
-      list.append(el('li', {}, name, meta));
+      const tile = el('span', { className: 'tile' });
+      tile.append(icon(isDir ? 'folder' : 'file'));
+      const row = el('li', { className: 'row' + (isDir ? ' clickable' : '') }, tile,
+        el('span', { className: 'col-name', textContent: it.name, title: it.name }),
+        el('span', { className: 'col-size variant', textContent: fmt(it.size || 0) }),
+        el('span', { className: 'col-date variant', textContent: it.updatedAt ? stamp(it.updatedAt) : '' }),
+        el('span', { className: 'col-act' }, info.writable ? iconButton('edit', 'Rename', () => rename(it)) : null));
+      if (isDir) row.onclick = () => openDir((p === '/' ? '' : p) + '/' + it.name);
+      list.append(row);
     }
     show('empty', items.length === 0);
     renderCrumbs();
@@ -314,36 +651,35 @@
     const nav = $('crumbs');
     nav.replaceChildren();
     const parts = cwd.split('/').filter(Boolean);
-    const add = (label, target) => {
-      const a = el('a', { textContent: label });
-      a.onclick = () => openDir(target);
-      nav.append(a);
-    };
-    add(info.name, '/');
+    const trail = [[info.name, '/']];
     let acc = '';
-    for (const seg of parts) {
-      acc += '/' + seg;
-      nav.append(document.createTextNode(' / '));
-      add(seg, acc);
-    }
+    for (const seg of parts) { acc += '/' + seg; trail.push([seg, acc]); }
+    trail.forEach(([label, target], i) => {
+      if (i > 0) nav.append(icon('chevron'));
+      const b = el('button', { type: 'button', className: 'btn' + (i === trail.length - 1 ? ' current' : ''), textContent: label });
+      b.onclick = () => openDir(target);
+      nav.append(b);
+    });
     $('target').textContent = parts.length ? parts[parts.length - 1] : info.name;
   }
 
   async function rename(it) {
-    const name = prompt('New name:', it.name);
-    if (!name || name === it.name) return;
+    const v = await dialog({ title: 'Rename', fields: [{ name: 'name', label: 'Name', value: it.name, required: true }], ok: 'Rename' });
+    if (!v || !v.name.trim() || v.name === it.name) return;
     const r = await fetch(`${api}/items/${it.id}`, { method: 'PATCH',
-      headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ name }) });
-    if (!r.ok) return alert((await json(r)).error || 'Rename failed.');
+      headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ name: v.name }) });
+    if (!r.ok) return snack((await json(r)).error || 'Rename failed.');
+    snack('Renamed');
     openDir(cwd);
   }
 
   $('mkdir').onclick = async () => {
-    const name = prompt('Folder name:');
-    if (!name) return;
+    const v = await dialog({ title: 'New folder', fields: [{ name: 'name', label: 'Folder name', value: 'Untitled folder', required: true }], ok: 'Create' });
+    if (!v || !v.name.trim()) return;
     const r = await fetch(`${api}/folders`, { method: 'POST',
-      headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ path: cwd, name }) });
-    if (!r.ok) return alert((await json(r)).error || 'Could not create the folder.');
+      headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ path: cwd, name: v.name }) });
+    if (!r.ok) return snack((await json(r)).error || 'Could not create the folder.');
+    snack('Folder created');
     openDir(cwd);
   };
 
@@ -357,29 +693,27 @@
 
   function enqueue(files) {
     for (const f of files) {
-      const node = el('div', { className: 'item' });
-      node.innerHTML = '<div class="top"><span class="fname"></span><span class="state"></span></div><div class="bar"><div></div></div>';
-      node.querySelector('.fname').textContent = f.name;
-      const job = { file: f, dir: cwd, el: node, cancel: false, uploadId: null };
-      const btn = el('button', { type: 'button', className: 'small', textContent: 'Cancel' });
-      btn.onclick = () => { job.cancel = true; btn.disabled = true; };
-      node.querySelector('.top').append(btn);
-      job.btn = btn;
-      $('queue').append(node);
-      state(job, 'waiting');
+      const tile = el('span', { className: 'tile' });
+      tile.append(icon('file'));
+      const title = el('span', { className: 'row-title', textContent: f.name, title: f.name });
+      const sub = el('span', { className: 'row-sub', textContent: 'Waiting' });
+      const bar = el('div');
+      const job = { file: f, dir: cwd, cancel: false, uploadId: null, tile, title, sub, bar };
+      const cancel = iconButton('close', 'Cancel', () => { job.cancel = true; cancel.disabled = true; });
+      job.cancelBtn = cancel;
+      job.row = el('li', { className: 'row job' }, tile,
+        el('span', { className: 'row-text' }, title, sub, el('div', { className: 'progress' }, bar)),
+        el('span', { className: 'row-actions' }, cancel));
+      $('queue').append(job.row);
       queue.push(job);
     }
     pump();
   }
 
-  function state(job, text, cls) {
-    job.el.querySelector('.state').textContent = text;
-    if (cls) job.el.classList.add(cls);
-  }
   function progress(job, sent) {
     const pct = job.file.size ? Math.floor((sent / job.file.size) * 100) : 100;
-    job.el.querySelector('.bar > div').style.width = pct + '%';
-    state(job, `${pct}% · ${fmt(sent)} / ${fmt(job.file.size)}`);
+    job.bar.style.width = pct + '%';
+    job.sub.textContent = `${pct}% · ${fmt(sent)} of ${fmt(job.file.size)}`;
   }
 
   window.addEventListener('beforeunload', (e) => { if (busy) { e.preventDefault(); e.returnValue = ''; } });
@@ -391,14 +725,17 @@
       const job = queue.shift();
       try {
         await upload(job);
-        state(job, 'uploaded ✓', 'done');
-        job.el.querySelector('.bar > div').style.width = '100%';
+        job.row.classList.add('done');
+        job.tile.replaceChildren(icon('check'));
+        job.bar.style.width = '100%';
+        job.sub.textContent = `Uploaded · ${fmt(job.file.size)}`;
         if (job.dir === cwd) openDir(cwd);
       } catch (err) {
-        state(job, job.cancel ? 'cancelled' : 'failed: ' + err.message, 'failed');
+        job.row.classList.add('failed');
+        job.sub.textContent = job.cancel ? 'Cancelled' : 'Failed: ' + err.message;
         if (job.uploadId) fetch(`${api}/uploads/${job.uploadId}`, { method: 'DELETE', headers: headers() });
       }
-      job.btn.remove();
+      job.cancelBtn.remove();
     }
     busy = false;
   }
@@ -450,18 +787,18 @@
         failures++;
       }
       if (failures > 8) throw new Error('too many failures, try again later');
-      state(job, `retrying (${failures})…`);
+      job.sub.textContent = `Retrying (${failures})…`;
       await sleep(Math.min(30000, 1500 * 2 ** failures));
     }
 
-    state(job, 'finishing…');
+    job.sub.textContent = 'Finishing…';
     res = await fetch(`${api}/uploads/${job.uploadId}/complete`, { method: 'POST', headers: headers() });
     body = await json(res);
     if (!res.ok) throw new Error(body.error || `error ${res.status}`);
-    if (body.name && body.name !== f.name) job.el.querySelector('.fname').textContent = `${f.name} → ${body.name}`;
+    if (body.name && body.name !== f.name) job.title.textContent = `${f.name} → ${body.name}`;
   }
 
-  init().catch((e) => { $('subtitle').textContent = ''; closed('Error: ' + e.message); });
+  init().catch((e) => closed('Something went wrong: ' + e.message));
 })();
 </script>
 </body>
