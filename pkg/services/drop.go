@@ -465,7 +465,7 @@ func (d *dropService) rename(w http.ResponseWriter, r *http.Request) {
 	// Only items inside the shared folder: neither the share root nor anything
 	// outside it (FilesUpdate performs no such check).
 	itemID := chi.URLParam(r, "itemId")
-	inside, err := d.isInShare(itemID, share.FileId, share.UserId)
+	inside, err := d.api.fileInFolder(itemID, share.FileId, share.UserId)
 	if err != nil || !inside {
 		dropError(w, &apiError{err: errDropNoItem, code: http.StatusNotFound})
 		return
@@ -500,25 +500,6 @@ func (d *dropService) rename(w http.ResponseWriter, r *http.Request) {
 	logging.Component("DROP").Info("drop.rename", zap.String("share_id", share.ID),
 		zap.String("from", item.Name), zap.String("to", name))
 	dropJSON(w, http.StatusOK, map[string]any{"id": itemID, "name": name})
-}
-
-// isInShare reports whether itemID is strictly inside folder rootID.
-func (d *dropService) isInShare(itemID, rootID string, userID int64) (bool, error) {
-	if !isUUID(itemID) {
-		return false, nil
-	}
-	var inside bool
-	err := d.api.db.Raw(`
-	WITH RECURSIVE up AS (
-		SELECT id, parent_id, 0 AS depth FROM teldrive.files
-		WHERE id = ? AND user_id = ? AND status = 'active'
-		UNION ALL
-		SELECT f.id, f.parent_id, up.depth + 1 FROM teldrive.files f
-		JOIN up ON f.id = up.parent_id
-		WHERE up.depth < 256
-	)
-	SELECT EXISTS (SELECT 1 FROM up WHERE parent_id = ?)`, itemID, userID, rootID).Scan(&inside).Error
-	return inside, err
 }
 
 // nameTaken reports whether an active item already has this name in the folder.
@@ -837,10 +818,6 @@ func (d *dropService) share(r *http.Request) (*fileShare, error) {
 	share, err := d.api.validFileShare(r, chi.URLParam(r, "id"))
 	if err != nil {
 		return nil, err
-	}
-	// Shares are cached without TTL: re-check the expiry here.
-	if share.ExpiresAt != nil && share.ExpiresAt.Before(time.Now().UTC()) {
-		return nil, &apiError{err: ErrShareExpired, code: http.StatusNotFound}
 	}
 	if share.Type != api.FileShareInfoTypeFolder {
 		return nil, &apiError{err: errDropNotFolder, code: http.StatusBadRequest}

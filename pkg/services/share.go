@@ -140,6 +140,12 @@ func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, err
 		return nil, &apiError{err: err}
 	}
 
+	// shareGetById checks the expiry, but its result is cached without TTL:
+	// check again so an expired link stops working when it expires.
+	if share.ExpiresAt != nil && share.ExpiresAt.Before(time.Now().UTC()) {
+		return nil, &apiError{err: ErrShareExpired, code: http.StatusNotFound}
+	}
+
 	if share.Password != nil {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
@@ -147,9 +153,13 @@ func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, err
 		}
 		bytes, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(authHeader, "Basic "))
 		if err != nil {
-			return nil, &apiError{err: err}
+			return nil, &apiError{err: ErrInvalidPassword, code: http.StatusUnauthorized}
 		}
-		password := strings.Split(string(bytes), ":")[1]
+		// "user:password"; the password itself may contain ':'.
+		_, password, found := strings.Cut(string(bytes), ":")
+		if !found {
+			return nil, &apiError{err: ErrInvalidPassword, code: http.StatusUnauthorized}
+		}
 
 		if err := bcrypt.CompareHashAndPassword([]byte(*share.Password), []byte(password)); err != nil {
 			return nil, &apiError{err: ErrInvalidPassword, code: http.StatusUnauthorized}
@@ -157,4 +167,33 @@ func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, err
 
 	}
 	return share, nil
+}
+
+// fileInShare reports whether fileID may be served through the share: it is
+// the shared file itself, or an active item strictly inside the shared folder.
+func (a *apiService) fileInShare(share *fileShare, fileID string) (bool, error) {
+	if fileID == share.FileId {
+		return true, nil
+	}
+	return a.fileInFolder(fileID, share.FileId, share.UserId)
+}
+
+// fileInFolder reports whether itemID is strictly inside folder rootID, by
+// walking up parent_id.
+func (a *apiService) fileInFolder(itemID, rootID string, userID int64) (bool, error) {
+	if !isUUID(itemID) {
+		return false, nil
+	}
+	var inside bool
+	err := a.db.Raw(`
+	WITH RECURSIVE up AS (
+		SELECT id, parent_id, 0 AS depth FROM teldrive.files
+		WHERE id = ? AND user_id = ? AND status = 'active'
+		UNION ALL
+		SELECT f.id, f.parent_id, up.depth + 1 FROM teldrive.files f
+		JOIN up ON f.id = up.parent_id
+		WHERE up.depth < 256
+	)
+	SELECT EXISTS (SELECT 1 FROM up WHERE parent_id = ?)`, itemID, userID, rootID).Scan(&inside).Error
+	return inside, err
 }

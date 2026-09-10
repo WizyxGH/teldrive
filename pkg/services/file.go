@@ -498,9 +498,17 @@ func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreat
 		fileShareUpdate.ExpiresAt = utils.Ptr(req.ExpiresAt.Value)
 	}
 
-	if err := a.db.Model(&models.FileShare{}).Where("file_id = ?", params.ID).Where("user_id = ?", userId).
+	var edited []models.FileShare
+	if err := a.db.Model(&edited).Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).
+		Where("file_id = ?", params.ID).Where("user_id = ?", userId).
 		Updates(fileShareUpdate).Error; err != nil {
 		return &apiError{err: err}
+	}
+
+	// Shares are cached without TTL: without this, the old password and
+	// expiry keep working until restart.
+	for _, s := range edited {
+		a.cache.Delete(ctx, cache.KeyShare(s.ID))
 	}
 
 	return nil
@@ -1014,6 +1022,12 @@ func (e *extendedService) SharesStream(w http.ResponseWriter, r *http.Request, s
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	// The share only grants access to its own file or folder content, not to
+	// any file of the owner whose ID is known.
+	if ok, err := e.api.fileInShare(share, fileId); err != nil || !ok {
+		http.Error(w, "file not found", http.StatusNotFound)
 		return
 	}
 	e.FilesStream(w, r, fileId, share.UserId)
