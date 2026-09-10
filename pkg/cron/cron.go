@@ -118,7 +118,7 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 	for _, row := range results {
 
 		if row.Session == "" {
-			break
+			continue
 		}
 		ids := []int{}
 
@@ -136,8 +136,10 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 		err := tgc.DeleteMessages(ctx, client, row.ChannelId, ids)
 
 		if err != nil {
+			// Un canal en erreur (supprime, bot retire...) ne doit pas bloquer
+			// le nettoyage des autres : on passe au suivant.
 			c.logger.Error("cron.file_delete_failed", zap.Error(err), zap.Int64("channel_id", row.ChannelId))
-			return
+			continue
 		}
 
 		items := pgtype.Array[string]{
@@ -183,8 +185,8 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 
 			err := tgc.DeleteMessages(ctx, client, result.ChannelId, result.Parts)
 			if err != nil {
-				c.logger.Error("failed to delete messages", zap.Error(err))
-				return
+				c.logger.Error("failed to delete messages", zap.Error(err), zap.Int64("channel_id", result.ChannelId))
+				continue
 			}
 		}
 		items := pgtype.Array[int]{
