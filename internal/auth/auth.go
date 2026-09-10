@@ -50,10 +50,10 @@ func GetUser(c context.Context) int64 {
 	return userId
 }
 
-// WithClaims attache une identite a un contexte, comme le ferait le
-// SecurityHandler apres verification d'un jeton. Reserve aux traitements
-// serveur qui ont deja etabli par eux-memes le droit d'agir pour cet
-// utilisateur (ex. depot via un lien de partage).
+// WithClaims attaches an identity to a context, as the SecurityHandler does
+// after verifying a token. Only for server-side code that has already
+// established on its own the right to act for this user (e.g. uploads through
+// a share link).
 func WithClaims(ctx context.Context, claims *types.JWTClaims) context.Context {
 	return context.WithValue(ctx, authKey, claims)
 }

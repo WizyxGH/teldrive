@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Dépôt de fichiers</title>
+<title>Shared folder</title>
 <style>
   :root {
     --bg: #f6f5f2; --card: #ffffff; --ink: #1d1c1a; --muted: #6b6862; --line: #e4e1da;
@@ -17,83 +17,112 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
     font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  main { max-width: 800px; margin: 0 auto; padding: 32px 16px 64px; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; word-break: break-word; }
   .sub { color: var(--muted); margin: 0 0 24px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
   .card h2 { font-size: 1rem; margin: 0 0 12px; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .head h2 { margin: 0; }
   button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    border-radius: 8px; padding: 8px 14px; cursor: pointer; text-decoration: none; display: inline-block; }
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.small { padding: 2px 8px; font-size: .85rem; }
+  button.danger { color: var(--err); }
   button:disabled { opacity: .5; cursor: default; }
-  input[type=password] { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
-    background: var(--bg); color: var(--ink); width: 100%; max-width: 320px; }
-  form.row { display: flex; gap: 8px; flex-wrap: wrap; }
+  input, select { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink); }
+  input[type=password] { width: 100%; max-width: 320px; }
+  form.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .msg { padding: 10px 12px; border-radius: 8px; background: var(--bar); margin-top: 12px; }
   .msg.err { color: var(--err); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem; border: 1px solid var(--line); }
+  .badge.write { border-color: var(--accent); color: var(--accent); }
+  .table { width: 100%; border-collapse: collapse; }
+  .table td { padding: 8px 4px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .table tr:first-child td { border-top: 0; }
+  .table .actions { text-align: right; white-space: nowrap; }
+  .scroll { overflow-x: auto; }
   .crumbs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 8px; color: var(--muted); }
   .crumbs a { color: var(--accent); text-decoration: none; cursor: pointer; }
-  ul.list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
-  ul.list li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 4px; border-top: 1px solid var(--line); }
+  ul.list { list-style: none; margin: 0; padding: 0; max-height: 380px; overflow-y: auto; }
+  ul.list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 4px; border-top: 1px solid var(--line); }
   ul.list li:first-child { border-top: 0; }
-  ul.list .name { word-break: break-all; }
+  ul.list .name { word-break: break-all; flex: 1; }
   ul.list .folder { color: var(--accent); cursor: pointer; }
-  ul.list .size { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .drop { border: 2px dashed var(--line); border-radius: 12px; padding: 32px 16px; text-align: center; color: var(--muted); }
+  ul.list .meta { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; display: flex; gap: 8px; align-items: center; }
+  .drop { border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px; text-align: center; color: var(--muted); }
   .drop.over { border-color: var(--accent); color: var(--ink); }
   .queue { margin-top: 16px; }
   .item { padding: 10px 0; border-top: 1px solid var(--line); }
-  .item .top { display: flex; justify-content: space-between; gap: 12px; }
-  .item .fname { word-break: break-all; }
+  .item .top { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .item .fname { word-break: break-all; flex: 1; }
   .item .state { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
   .item.done .state { color: var(--ok); }
   .item.failed .state { color: var(--err); }
   .bar { height: 6px; background: var(--bar); border-radius: 3px; margin-top: 6px; overflow: hidden; }
   .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
   .item.done .bar > div { background: var(--ok); }
-  .switch { display: flex; align-items: center; gap: 10px; }
   .muted { color: var(--muted); }
+  .note { color: var(--muted); font-size: .9rem; margin: 12px 0 0; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
-  <h1 id="title">Dépôt de fichiers</h1>
-  <p class="sub" id="subtitle">Chargement…</p>
+  <h1 id="title">Shared folder</h1>
+  <p class="sub" id="subtitle">Loading…</p>
 
   <section class="card" id="owner" hidden>
-    <h2>Réglages du propriétaire</h2>
-    <label class="switch"><input type="checkbox" id="allow"> <span>Autoriser le dépôt de fichiers via ce lien</span></label>
-    <p class="muted" id="ownerHint"></p>
+    <h2>Access to this folder</h2>
+    <p class="muted" style="margin-top:0">Each link has its own password and access level. Give read-only links to some people and writable links to others.</p>
+    <div class="scroll"><table class="table" id="links"></table></div>
+    <form class="row" id="newLink" style="margin-top:16px">
+      <select id="nlLevel" aria-label="Access level">
+        <option value="read">Read-only</option>
+        <option value="write">Read &amp; write</option>
+      </select>
+      <input type="password" id="nlPass" placeholder="Password" autocomplete="new-password">
+      <input type="date" id="nlExp" aria-label="Expiry date (optional)" title="Expiry date (optional)">
+      <button class="primary" type="submit">Create link</button>
+    </form>
+    <div class="msg err" id="ownerErr" hidden></div>
+    <p class="note">Read-only: browse and download. Read &amp; write: also upload files, create folders and rename (password required).<br>
+      Manage these links here only: the teldrive share dialog changes the password of <em>every</em> link of the folder, and deleting the share there deletes them all.</p>
   </section>
 
   <section class="card" id="closed" hidden>
-    <p id="closedMsg"></p>
+    <p id="closedMsg" style="margin:0"></p>
   </section>
 
   <section class="card" id="unlock" hidden>
-    <h2>Ce dossier est protégé</h2>
+    <h2>This folder is password-protected</h2>
     <form class="row" id="unlockForm">
-      <input type="password" id="password" placeholder="Mot de passe" autocomplete="current-password" required>
-      <button class="primary" type="submit">Ouvrir</button>
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+      <button class="primary" type="submit">Open</button>
     </form>
     <div class="msg err" id="unlockErr" hidden></div>
   </section>
 
   <section id="app" hidden>
     <div class="card">
-      <h2>Contenu</h2>
+      <div class="head">
+        <h2>Content <span class="badge" id="level"></span></h2>
+        <div>
+          <button type="button" id="mkdir" hidden>New folder</button>
+          <a class="btn" id="browse" target="_blank" rel="noopener">Open viewer</a>
+        </div>
+      </div>
       <nav class="crumbs" id="crumbs"></nav>
       <ul class="list" id="list"></ul>
-      <p class="muted" id="empty" hidden>Ce dossier est vide.</p>
-      <p style="margin:12px 0 0"><a class="btn" id="browse" target="_blank" rel="noopener">Parcourir et télécharger</a></p>
+      <p class="muted" id="empty" hidden>This folder is empty.</p>
     </div>
 
-    <div class="card">
-      <h2>Déposer dans <span id="target"></span></h2>
+    <div class="card" id="uploader" hidden>
+      <h2>Upload to <span id="target"></span></h2>
       <div class="drop" id="dropzone">
-        <p>Glissez vos fichiers ici</p>
-        <p><button class="primary" id="pick" type="button">Choisir des fichiers</button></p>
+        <p>Drop files here</p>
+        <p><button class="primary" id="pick" type="button">Choose files</button></p>
         <input type="file" id="files" multiple hidden>
       </div>
       <div class="queue" id="queue"></div>
@@ -105,48 +134,45 @@
 (() => {
   const shareId = location.pathname.split('/').filter(Boolean).pop();
   const api = `/api/drop/${encodeURIComponent(shareId)}`;
+  const sharesApi = `/api/shares/${encodeURIComponent(shareId)}`;
   const $ = (id) => document.getElementById(id);
   let info = null, auth = null, cwd = '/', busy = false;
   const queue = [];
 
   const fmt = (n) => {
     if (n == null) return '';
-    const u = ['o', 'Ko', 'Mo', 'Go', 'To']; let i = 0;
+    const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
     while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
     return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
   };
+  const date = (d) => new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   const basic = (pw) => 'Basic ' + btoa(String.fromCharCode(...new TextEncoder().encode('drop:' + pw)));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  function show(id, on = true) { $(id).hidden = !on; }
+  const show = (id, on = true) => { $(id).hidden = !on; };
+  const headers = (extra = {}) => (auth ? { Authorization: auth, ...extra } : extra);
+  const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 
   async function json(res) {
     try { return await res.json(); } catch { return {}; }
   }
+  function closed(text) { $('closedMsg').textContent = text; show('closed'); }
 
   async function init() {
     const res = await fetch(api, { credentials: 'same-origin' });
     const body = await json(res);
     if (!res.ok) {
       $('subtitle').textContent = '';
-      $('closedMsg').textContent = res.status === 404 ? "Ce lien n'existe pas ou a expiré." : (body.error || 'Erreur.');
-      show('closed');
-      return;
+      return closed(res.status === 404 ? 'This link does not exist or has expired.' : (body.error || 'Error.'));
     }
     info = body;
+    document.title = info.name;
     $('title').textContent = info.name;
-    $('subtitle').textContent = info.expiresAt
-      ? `Lien valable jusqu'au ${new Date(info.expiresAt).toLocaleString('fr-FR')}` : '';
+    $('subtitle').textContent = info.expiresAt ? `Link valid until ${new Date(info.expiresAt).toLocaleString()}` : '';
     $('browse').href = `/share/${encodeURIComponent(shareId)}`;
+    if (info.isOwner) loadLinks();
+    if (!info.folder) return closed('This link points to a single file: open it in the viewer.');
 
-    if (info.isOwner) renderOwner();
-
-    if (!info.folder) return closed("Le dépôt n'est possible que sur un dossier partagé.");
-    if (!info.allowUpload) {
-      return closed(info.isOwner ? 'Le dépôt est fermé. Activez-le ci-dessus.'
-                                 : "Ce lien n'accepte pas de dépôt de fichiers.");
-    }
-    show('closed', false);
+    if (!info.protected) return open(null);
     let saved = null;
     try { saved = sessionStorage.getItem('drop:' + shareId); } catch {}
     if (saved && await tryUnlock(saved)) return;
@@ -154,44 +180,108 @@
     $('password').focus();
   }
 
-  function closed(text) { $('closedMsg').textContent = text; show('closed'); }
-
-  function renderOwner() {
+  // ---- owner: links ----
+  async function loadLinks() {
     show('owner');
-    const box = $('allow');
-    box.checked = info.allowUpload;
-    box.disabled = !info.folder || !info.protected;
-    $('ownerHint').textContent = !info.folder ? 'Le dépôt ne fonctionne que sur un dossier partagé.'
-      : !info.protected ? 'Ajoutez un mot de passe à ce partage dans teldrive pour pouvoir ouvrir le dépôt.'
-      : 'Les visiteurs devront saisir le mot de passe du partage. Ils pourront voir le contenu du dossier et y déposer des fichiers.';
-    box.onchange = async () => {
-      box.disabled = true;
-      const res = await fetch(api, { method: 'PATCH', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allowUpload: box.checked }) });
-      const body = await json(res);
-      if (!res.ok) { box.checked = !box.checked; alert(body.error || 'Erreur'); }
-      box.disabled = false;
-      location.reload();
-    };
+    const res = await fetch(`${api}/links`, { credentials: 'same-origin' });
+    const links = await json(res);
+    const table = $('links');
+    table.replaceChildren();
+    if (!res.ok) return ownerError(links.error);
+    for (const l of links) {
+      const url = `${location.origin}/drop/${l.id}`;
+      const level = el('span', { className: 'badge' + (l.writable ? ' write' : ''), textContent: l.writable ? 'Read & write' : 'Read-only' });
+      const details = [l.protected ? 'password' : 'no password', l.expiresAt ? `expires ${date(l.expiresAt)}` : 'no expiry'].join(' · ');
+      const copy = el('button', { type: 'button', className: 'small', textContent: 'Copy link' });
+      copy.onclick = async () => {
+        try { await navigator.clipboard.writeText(url); copy.textContent = 'Copied'; }
+        catch { prompt('Copy this link:', url); }
+        setTimeout(() => (copy.textContent = 'Copy link'), 1500);
+      };
+      const toggle = el('button', { type: 'button', className: 'small', textContent: l.writable ? 'Make read-only' : 'Allow writing' });
+      toggle.onclick = () => editLink(l.id, { writable: !l.writable }, !l.writable && !l.protected);
+      const pass = el('button', { type: 'button', className: 'small', textContent: 'Password' });
+      pass.onclick = () => {
+        const p = prompt('New password for this link (at least 4 characters):');
+        if (p) editLink(l.id, { password: p });
+      };
+      const revoke = el('button', { type: 'button', className: 'small danger', textContent: 'Revoke' });
+      revoke.onclick = async () => {
+        const self = l.id === shareId ? '\n\nThis is the link of the page you are on: it will stop working.' : '';
+        if (!confirm('Revoke this link? People using it will lose access.' + self)) return;
+        const r = await fetch(`${api}/links/${l.id}`, { method: 'DELETE', credentials: 'same-origin' });
+        if (!r.ok) return ownerError((await json(r)).error);
+        if (l.id === shareId) return location.reload();
+        loadLinks();
+      };
+      const here = l.id === shareId ? el('span', { className: 'muted', textContent: ' (this page)' }) : '';
+      table.append(el('tr', {},
+        el('td', {}, level, here),
+        el('td', { className: 'muted', textContent: details }),
+        el('td', { className: 'actions' }, copy, ' ', toggle, ' ', pass, ' ', revoke)));
+    }
   }
 
+  async function editLink(id, patch, needsPassword) {
+    if (needsPassword) {
+      const p = prompt('A writable link needs a password. Choose one (at least 4 characters):');
+      if (!p) return;
+      patch.password = p;
+    }
+    const r = await fetch(`${api}/links/${id}`, { method: 'PATCH', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+    if (!r.ok) return ownerError((await json(r)).error);
+    if (id === shareId) return location.reload();
+    loadLinks();
+  }
+
+  function ownerError(text) {
+    $('ownerErr').textContent = text || 'Error.';
+    show('ownerErr');
+    setTimeout(() => show('ownerErr', false), 6000);
+  }
+
+  $('newLink').onsubmit = async (e) => {
+    e.preventDefault();
+    const writable = $('nlLevel').value === 'write';
+    const password = $('nlPass').value;
+    if (writable && !password) return ownerError('A writable link needs a password.');
+    const exp = $('nlExp').value;
+    const body = { writable, password, expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : '' };
+    const r = await fetch(`${api}/links`, { method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) return ownerError((await json(r)).error);
+    $('nlPass').value = ''; $('nlExp').value = '';
+    loadLinks();
+  };
+
+  // ---- visitor ----
   async function tryUnlock(pw) {
     const a = basic(pw);
-    const res = await fetch(`/api/shares/${encodeURIComponent(shareId)}/files?path=%2F&limit=1`, { headers: { Authorization: a } });
+    const res = await fetch(`${sharesApi}/files?path=%2F&limit=1`, { headers: { Authorization: a } });
     if (!res.ok) return false;
-    auth = a;
     try { sessionStorage.setItem('drop:' + shareId, pw); } catch {}
+    await open(a);
+    return true;
+  }
+
+  async function open(a) {
+    auth = a;
     show('unlock', false);
     show('app');
+    const w = info.writable;
+    $('level').textContent = w ? 'read & write' : 'read-only';
+    $('level').className = 'badge' + (w ? ' write' : '');
+    show('mkdir', w);
+    show('uploader', w);
     await openDir('/');
-    return true;
   }
 
   $('unlockForm').onsubmit = async (e) => {
     e.preventDefault();
     show('unlockErr', false);
     if (!(await tryUnlock($('password').value))) {
-      $('unlockErr').textContent = 'Mot de passe incorrect.';
+      $('unlockErr').textContent = 'Wrong password.';
       show('unlockErr');
     }
   };
@@ -199,22 +289,22 @@
   async function openDir(p) {
     cwd = p;
     const q = new URLSearchParams({ path: p, limit: '500', page: '1', sort: 'name', order: 'asc' });
-    const res = await fetch(`/api/shares/${encodeURIComponent(shareId)}/files?${q}`, { headers: { Authorization: auth } });
+    const res = await fetch(`${sharesApi}/files?${q}`, { headers: headers() });
     const body = await json(res);
     const list = $('list');
     list.replaceChildren();
     const items = (body.items || []).sort((a, b) => (a.type === b.type ? 0 : a.type === 'folder' ? -1 : 1));
     for (const it of items) {
-      const li = document.createElement('li');
-      const name = document.createElement('span');
-      name.className = 'name' + (it.type === 'folder' ? ' folder' : '');
-      name.textContent = (it.type === 'folder' ? '📁 ' : '') + it.name;
-      if (it.type === 'folder') name.onclick = () => openDir((p === '/' ? '' : p) + '/' + it.name);
-      const size = document.createElement('span');
-      size.className = 'size';
-      size.textContent = it.type === 'folder' ? '' : fmt(it.size);
-      li.append(name, size);
-      list.append(li);
+      const isDir = it.type === 'folder';
+      const name = el('span', { className: 'name' + (isDir ? ' folder' : ''), textContent: (isDir ? '📁 ' : '') + it.name });
+      if (isDir) name.onclick = () => openDir((p === '/' ? '' : p) + '/' + it.name);
+      const meta = el('span', { className: 'meta', textContent: isDir ? '' : fmt(it.size) });
+      if (info.writable) {
+        const ren = el('button', { type: 'button', className: 'small', textContent: 'Rename' });
+        ren.onclick = () => rename(it);
+        meta.append(ren);
+      }
+      list.append(el('li', {}, name, meta));
     }
     show('empty', items.length === 0);
     renderCrumbs();
@@ -225,8 +315,7 @@
     nav.replaceChildren();
     const parts = cwd.split('/').filter(Boolean);
     const add = (label, target) => {
-      const a = document.createElement('a');
-      a.textContent = label;
+      const a = el('a', { textContent: label });
       a.onclick = () => openDir(target);
       nav.append(a);
     };
@@ -240,7 +329,25 @@
     $('target').textContent = parts.length ? parts[parts.length - 1] : info.name;
   }
 
-  // ---- dépôt ----
+  async function rename(it) {
+    const name = prompt('New name:', it.name);
+    if (!name || name === it.name) return;
+    const r = await fetch(`${api}/items/${it.id}`, { method: 'PATCH',
+      headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ name }) });
+    if (!r.ok) return alert((await json(r)).error || 'Rename failed.');
+    openDir(cwd);
+  }
+
+  $('mkdir').onclick = async () => {
+    const name = prompt('Folder name:');
+    if (!name) return;
+    const r = await fetch(`${api}/folders`, { method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ path: cwd, name }) });
+    if (!r.ok) return alert((await json(r)).error || 'Could not create the folder.');
+    openDir(cwd);
+  };
+
+  // ---- uploads ----
   const zone = $('dropzone');
   $('pick').onclick = () => $('files').click();
   $('files').onchange = (e) => { enqueue([...e.target.files]); e.target.value = ''; };
@@ -250,19 +357,16 @@
 
   function enqueue(files) {
     for (const f of files) {
-      const el = document.createElement('div');
-      el.className = 'item';
-      el.innerHTML = '<div class="top"><span class="fname"></span><span class="state"></span></div><div class="bar"><div></div></div>';
-      el.querySelector('.fname').textContent = f.name;
-      const job = { file: f, dir: cwd, el, cancel: false, uploadId: null };
-      const btn = document.createElement('button');
-      btn.textContent = 'Annuler';
-      btn.style.marginLeft = '8px';
+      const node = el('div', { className: 'item' });
+      node.innerHTML = '<div class="top"><span class="fname"></span><span class="state"></span></div><div class="bar"><div></div></div>';
+      node.querySelector('.fname').textContent = f.name;
+      const job = { file: f, dir: cwd, el: node, cancel: false, uploadId: null };
+      const btn = el('button', { type: 'button', className: 'small', textContent: 'Cancel' });
       btn.onclick = () => { job.cancel = true; btn.disabled = true; };
-      el.querySelector('.top').append(btn);
+      node.querySelector('.top').append(btn);
       job.btn = btn;
-      $('queue').append(el);
-      state(job, 'en attente');
+      $('queue').append(node);
+      state(job, 'waiting');
       queue.push(job);
     }
     pump();
@@ -275,7 +379,7 @@
   function progress(job, sent) {
     const pct = job.file.size ? Math.floor((sent / job.file.size) * 100) : 100;
     job.el.querySelector('.bar > div').style.width = pct + '%';
-    state(job, `${pct} % · ${fmt(sent)} / ${fmt(job.file.size)}`);
+    state(job, `${pct}% · ${fmt(sent)} / ${fmt(job.file.size)}`);
   }
 
   window.addEventListener('beforeunload', (e) => { if (busy) { e.preventDefault(); e.returnValue = ''; } });
@@ -287,12 +391,12 @@
       const job = queue.shift();
       try {
         await upload(job);
-        state(job, 'envoyé ✓', 'done');
+        state(job, 'uploaded ✓', 'done');
         job.el.querySelector('.bar > div').style.width = '100%';
         if (job.dir === cwd) openDir(cwd);
       } catch (err) {
-        state(job, job.cancel ? 'annulé' : 'échec : ' + err.message, 'failed');
-        if (job.uploadId) fetch(`${api}/uploads/${job.uploadId}`, { method: 'DELETE', headers: { Authorization: auth } });
+        state(job, job.cancel ? 'cancelled' : 'failed: ' + err.message, 'failed');
+        if (job.uploadId) fetch(`${api}/uploads/${job.uploadId}`, { method: 'DELETE', headers: headers() });
       }
       job.btn.remove();
     }
@@ -301,26 +405,26 @@
 
   async function upload(job) {
     const f = job.file;
-    if (f.size === 0) throw new Error('fichier vide');
+    if (f.size === 0) throw new Error('empty file');
     let res = await fetch(`${api}/uploads`, {
-      method: 'POST', headers: { Authorization: auth, 'Content-Type': 'application/json' },
+      method: 'POST', headers: headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ name: f.name, size: f.size, path: job.dir, mimeType: f.type }),
     });
     let body = await json(res);
-    if (!res.ok) throw new Error(body.error || `erreur ${res.status}`);
+    if (!res.ok) throw new Error(body.error || `error ${res.status}`);
     job.uploadId = body.uploadId;
     const { parts, partSize, chunkSize } = body;
 
     let part = 1, offset = 0, failures = 0;
     progress(job, 0);
     while (part <= parts) {
-      if (job.cancel) throw new Error('annulé');
+      if (job.cancel) throw new Error('cancelled');
       const partStart = (part - 1) * partSize;
       const partLen = Math.min(partSize, f.size - partStart);
       const end = Math.min(offset + chunkSize, partLen);
       try {
         res = await fetch(`${api}/uploads/${job.uploadId}/parts/${part}?offset=${offset}`, {
-          method: 'PUT', headers: { Authorization: auth, 'Content-Type': 'application/octet-stream' },
+          method: 'PUT', headers: headers({ 'Content-Type': 'application/octet-stream' }),
           body: f.slice(partStart + offset, partStart + end),
         });
         body = await json(res);
@@ -334,30 +438,30 @@
         continue;
       }
       if (res && res.status === 409 && body.expectedPart !== undefined) {
-        // Le serveur indique où reprendre : simple décalage (réponse perdue)
-        // ou morceau à recommencer après une erreur.
+        // The server tells where to resume: a plain gap (lost response) or a
+        // part to restart after an error.
         part = body.expectedPart; offset = body.expectedOffset;
         progress(job, (part - 1) * partSize + offset);
         if (!body.error) continue;
         failures++;
       } else if (res && res.status < 500) {
-        throw new Error(body.error || `erreur ${res.status}`);
+        throw new Error(body.error || `error ${res.status}`);
       } else {
         failures++;
       }
-      if (failures > 8) throw new Error('trop d\'échecs, réessayez plus tard');
-      state(job, `nouvelle tentative (${failures})…`);
+      if (failures > 8) throw new Error('too many failures, try again later');
+      state(job, `retrying (${failures})…`);
       await sleep(Math.min(30000, 1500 * 2 ** failures));
     }
 
-    state(job, 'finalisation…');
-    res = await fetch(`${api}/uploads/${job.uploadId}/complete`, { method: 'POST', headers: { Authorization: auth } });
+    state(job, 'finishing…');
+    res = await fetch(`${api}/uploads/${job.uploadId}/complete`, { method: 'POST', headers: headers() });
     body = await json(res);
-    if (!res.ok) throw new Error(body.error || `erreur ${res.status}`);
+    if (!res.ok) throw new Error(body.error || `error ${res.status}`);
     if (body.name && body.name !== f.name) job.el.querySelector('.fname').textContent = `${f.name} → ${body.name}`;
   }
 
-  init().catch((e) => { $('subtitle').textContent = ''; closed('Erreur : ' + e.message); });
+  init().catch((e) => { $('subtitle').textContent = ''; closed('Error: ' + e.message); });
 })();
 </script>
 </body>

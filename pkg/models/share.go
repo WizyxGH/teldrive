@@ -12,7 +12,7 @@ type FileShare struct {
 	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:current_timestamp"`
 	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:current_timestamp"`
 	UserId    int64      `gorm:"type:bigint;not null"`
-	// AllowUpload autorise le depot de fichiers via le lien (dossier protege
-	// par mot de passe uniquement).
-	AllowUpload bool `gorm:"not null;default:false"`
+	// Writable grants write access through the link: upload files, create
+	// folders, rename. Password-protected folder shares only.
+	Writable bool `gorm:"not null;default:false"`
 }

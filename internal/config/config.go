@@ -61,18 +61,22 @@ type ServerCmdConfig struct {
 	Drop     DropConfig
 }
 
-// DropConfig regle le depot de fichiers via un lien de partage.
+// DropConfig configures access to shared folders through links
+// (see pkg/services/drop.go).
 type DropConfig struct {
-	Enable bool `default:"true" description:"Enable file drop through password-protected share links"`
-	// Taille des morceaux stockes sur Telegram, arrondie a un multiple de
-	// 16 Mio (bloc d'empreinte BLAKE3), entre 16 Mio et 2000 Mio.
+	Enable bool `default:"true" description:"Enable the /drop page: read and write access to shared folders through links"`
+	// Size of the parts stored on Telegram, rounded down to a multiple of
+	// 16 MiB (the BLAKE3 hashing block), between 16 MiB and 2000 MiB.
 	PartSize int `default:"536870912" description:"Size in bytes of each part stored on Telegram (rounded down to a multiple of 16 MiB)"`
-	// Taille des requetes HTTP du navigateur. Doit rester sous la limite des
-	// proxys (100 Mo chez Cloudflare) ; le serveur les recolle en un morceau.
+	// Size of the browser's HTTP requests. Must stay below proxy limits
+	// (100 MB on Cloudflare); the server stitches chunks into one part.
 	ChunkSize   int           `default:"33554432" description:"Size in bytes of each HTTP chunk sent by the browser"`
 	IdleTimeout time.Duration `default:"10m" description:"Abort an in-progress part after this long without data"`
-	// Nom des morceaux sur Telegram : nom du fichier (true) ou aleatoire (false).
+	// Telegram part names: the file name (true) or random names (false).
 	ReadablePartNames bool `default:"true" description:"Name Telegram parts after the file instead of random names"`
+	// Encrypt uploaded files with tg.uploads.encryption-key. Losing that key
+	// makes every encrypted file permanently unreadable.
+	EncryptFiles bool `default:"false" description:"Encrypt files uploaded through links (requires tg.uploads.encryption-key)"`
 }
 
 type CheckCmdConfig struct {

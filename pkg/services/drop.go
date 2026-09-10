@@ -1,16 +1,21 @@
 package services
 
-// Depot de fichiers via un lien de partage.
+// Access to a shared folder through links, read-only or writable.
 //
-// Un dossier partage avec mot de passe peut accepter des depots : le visiteur
-// n'a besoin ni de compte teldrive ni de compte Telegram. Le serveur envoie
-// les fichiers pour le compte du proprietaire du partage (ses bots, son canal)
-// en reutilisant UploadsUpload et FilesCreate.
+// A folder can have several links, each with its own password, expiry and
+// access level: read (browse, download) or write (also upload files, create
+// folders, rename). Visitors need neither a teldrive nor a Telegram account:
+// the server acts on behalf of the share owner (their bots, their channel) by
+// reusing UploadsUpload, FilesCreate and FilesUpdate. The owner manages links
+// from /drop/{id}.
 //
-// Le navigateur envoie des tranches HTTP de ChunkSize octets (sous la limite
-// des proxys comme Cloudflare) ; le serveur les recolle au fil de l'eau dans
-// un io.Pipe pour produire des morceaux Telegram de PartSize octets. Si une
-// tranche echoue, le morceau en cours repart de zero.
+// The teldrive UI only knows one link per folder: its share dialog edits or
+// deletes every link of the folder at once.
+//
+// The browser sends HTTP chunks of ChunkSize bytes (below proxy limits such as
+// Cloudflare's); the server streams them through an io.Pipe into Telegram
+// parts of PartSize bytes. If a chunk fails, the current part restarts from
+// offset 0.
 
 import (
 	"context"
@@ -40,41 +45,52 @@ import (
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 )
 
 //go:embed drop.html
 var dropPage []byte
 
 const (
-	dropMaxPartSize  = 2000 * 1024 * 1024 // limite Telegram par morceau (multiple de hash.BlockSize)
+	dropMaxPartSize  = 2000 * 1024 * 1024 // Telegram per-part limit (a multiple of hash.BlockSize)
 	dropMaxSessions  = 64
 	dropMaxNameRunes = 255
 )
 
-// dropPartSize aligne la taille des morceaux sur hash.BlockSize (16 Mio).
-// L'empreinte BLAKE3 d'un fichier est calculee bloc par bloc, morceau par
-// morceau : elle ne vaut celle du fichier entier que si chaque morceau (sauf
-// le dernier) contient un nombre entier de blocs. Sinon les donnees sont
-// intactes mais la verification d'integrite echoue au telechargement.
+// dropPartSize aligns the part size on hash.BlockSize (16 MiB). A file's
+// BLAKE3 tree hash is built from per-part block hashes: it only matches the
+// hash of the whole file if every part but the last holds a whole number of
+// blocks. Otherwise the data is intact but checksum verification fails on
+// download.
 func dropPartSize(configured int64) int64 {
 	size := configured / hash.BlockSize * hash.BlockSize
 	return min(max(size, hash.BlockSize), dropMaxPartSize)
 }
 
 var (
-	errDropDisabled   = errors.New("le depot n'est pas autorise sur ce lien")
-	errDropNoPassword = errors.New("le depot exige un lien protege par mot de passe")
-	errDropNotFolder  = errors.New("le depot n'est possible que sur un dossier partage")
-	errDropUnknown    = errors.New("envoi inconnu ou expire")
-	errDropIdle       = errors.New("envoi interrompu faute de donnees")
-	errDropAborted    = errors.New("envoi annule")
-	errDropBusy       = errors.New("trop d'envois en cours, reessayez plus tard")
-	errDropBadName    = errors.New("nom de fichier invalide")
-	errDropBadSize    = errors.New("taille de fichier invalide")
-	errDropNoSession  = errors.New("le proprietaire du partage n'a plus de session active")
-	errDropIncomplete = errors.New("tous les morceaux n'ont pas ete recus")
-	errDropNotFound   = errors.New("dossier de destination introuvable")
-	errDropChannel    = errors.New("les morceaux ont ete envoyes dans des canaux differents")
+	errDropReadOnly   = errors.New("this link is read-only")
+	errDropNoPassword = errors.New("a writable link must be password-protected")
+	errDropNotFolder  = errors.New("write access is only available on a shared folder")
+	errDropNotOwner   = errors.New("this share does not belong to you")
+	errDropLogin      = errors.New("teldrive login required")
+	errDropNoItem     = errors.New("item not found in this folder")
+	errDropNameTaken  = errors.New("an item with this name already exists here")
+	errDropShortPass  = errors.New("password too short (at least 4 characters)")
+	errDropBadExpiry  = errors.New("invalid or past expiry date")
+	errDropUnknown    = errors.New("unknown or expired upload")
+	errDropIdle       = errors.New("upload aborted: no data received")
+	errDropAborted    = errors.New("upload cancelled")
+	errDropBusy       = errors.New("too many uploads in progress, try again later")
+	errDropBadName    = errors.New("invalid name")
+	errDropBadSize    = errors.New("invalid file size")
+	errDropNoSession  = errors.New("the share owner no longer has an active session")
+	errDropIncomplete = errors.New("not all parts have been received")
+	errDropNotFound   = errors.New("destination folder not found")
+	errDropChannel    = errors.New("parts were uploaded to different channels")
+	errDropBadChunk   = errors.New("invalid chunk parameters")
+	errDropBigChunk   = errors.New("chunk larger than the remaining part")
+	errDropTooMany    = errors.New("too many items with the same name")
+	errDropNoKey      = errors.New("encryption is enabled for links but no encryption key is configured")
 )
 
 type dropService struct {
@@ -115,7 +131,7 @@ type dropPartResult struct {
 	err  error
 }
 
-// RegisterDropRoutes ajoute la page /drop/{id} et l'API /api/drop/{id}/...
+// RegisterDropRoutes adds the /drop/{id} page and the /api/drop/{id}/... API.
 func RegisterDropRoutes(r chi.Router, a *apiService) {
 	if !a.cnf.Drop.Enable {
 		return
@@ -126,7 +142,14 @@ func RegisterDropRoutes(r chi.Router, a *apiService) {
 	r.Get("/drop/{id}", d.page)
 	r.Route("/api/drop/{id}", func(r chi.Router) {
 		r.Get("/", d.info)
-		r.Patch("/", d.settings)
+		// owner: links of the folder
+		r.Get("/links", d.listLinks)
+		r.Post("/links", d.createLink)
+		r.Patch("/links/{linkId}", d.updateLink)
+		r.Delete("/links/{linkId}", d.deleteLink)
+		// visitor holding a writable link
+		r.Post("/folders", d.mkdir)
+		r.Patch("/items/{itemId}", d.rename)
 		r.Post("/uploads", d.begin)
 		r.Put("/uploads/{uploadId}/parts/{partNo}", d.chunk)
 		r.Post("/uploads/{uploadId}/complete", d.complete)
@@ -142,7 +165,7 @@ func (d *dropService) page(w http.ResponseWriter, r *http.Request) {
 	w.Write(dropPage)
 }
 
-// info est public, comme SharesGetById : il ne revele ni contenu ni mot de passe.
+// info is public, like SharesGetById: it reveals neither content nor password.
 func (d *dropService) info(w http.ResponseWriter, r *http.Request) {
 	share, err := d.api.shareGetById(chi.URLParam(r, "id"))
 	if err != nil {
@@ -151,58 +174,368 @@ func (d *dropService) info(w http.ResponseWriter, r *http.Request) {
 	}
 	uid, isOwner := d.owner(r)
 	dropJSON(w, http.StatusOK, map[string]any{
-		"name":        share.Name,
-		"folder":      share.Type == api.FileShareInfoTypeFolder,
-		"protected":   share.Password != nil,
-		"allowUpload": share.AllowUpload,
-		"expiresAt":   share.ExpiresAt,
-		"isOwner":     isOwner && uid == share.UserId,
-		"chunkSize":   d.api.cnf.Drop.ChunkSize,
+		"name":      share.Name,
+		"folder":    share.Type == api.FileShareInfoTypeFolder,
+		"protected": share.Password != nil,
+		"writable":  share.Writable,
+		"expiresAt": share.ExpiresAt,
+		"isOwner":   isOwner && uid == share.UserId,
+		"chunkSize": d.api.cnf.Drop.ChunkSize,
 	})
 }
 
-// settings permet au proprietaire, connecte a teldrive, d'ouvrir ou fermer le depot.
-func (d *dropService) settings(w http.ResponseWriter, r *http.Request) {
+// ---- owner: managing the links of a folder ----
+
+type dropLink struct {
+	ID        string     `json:"id"`
+	Writable  bool       `json:"writable"`
+	Protected bool       `json:"protected"`
+	ExpiresAt *time.Time `json:"expiresAt"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+
+// ownerShare checks that the request comes from the owner of share {id}.
+func (d *dropService) ownerShare(r *http.Request) (*fileShare, error) {
 	uid, ok := d.owner(r)
 	if !ok {
-		dropError(w, &apiError{err: errors.New("connexion requise"), code: http.StatusUnauthorized})
-		return
+		return nil, &apiError{err: errDropLogin, code: http.StatusUnauthorized}
 	}
-	var body struct {
-		AllowUpload bool `json:"allowUpload"`
+	share, err := d.api.shareGetById(chi.URLParam(r, "id"))
+	if err != nil {
+		return nil, err
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
-		dropError(w, &apiError{err: err, code: http.StatusBadRequest})
-		return
+	if share.UserId != uid {
+		return nil, &apiError{err: errDropNotOwner, code: http.StatusForbidden}
 	}
-	id := chi.URLParam(r, "id")
-	share, err := d.api.shareGetById(id)
+	return share, nil
+}
+
+func (d *dropService) listLinks(w http.ResponseWriter, r *http.Request) {
+	share, err := d.ownerShare(r)
 	if err != nil {
 		dropError(w, err)
 		return
 	}
-	if share.UserId != uid {
-		dropError(w, &apiError{err: errors.New("ce partage ne vous appartient pas"), code: http.StatusForbidden})
-		return
-	}
-	if body.AllowUpload {
-		if share.Type != api.FileShareInfoTypeFolder {
-			dropError(w, &apiError{err: errDropNotFolder, code: http.StatusBadRequest})
-			return
-		}
-		if share.Password == nil {
-			dropError(w, &apiError{err: errDropNoPassword, code: http.StatusBadRequest})
-			return
-		}
-	}
-	if err := d.api.db.Model(&models.FileShare{}).Where("id = ? AND user_id = ?", id, uid).
-		Update("allow_upload", body.AllowUpload).Error; err != nil {
+	var rows []models.FileShare
+	if err := d.api.db.Where("file_id = ? AND user_id = ?", share.FileId, share.UserId).
+		Order("created_at").Find(&rows).Error; err != nil {
 		dropError(w, &apiError{err: err})
 		return
 	}
-	d.api.cache.Delete(r.Context(), cache.KeyShare(id))
-	dropJSON(w, http.StatusOK, map[string]any{"allowUpload": body.AllowUpload})
+	links := make([]dropLink, 0, len(rows))
+	for _, s := range rows {
+		links = append(links, dropLink{ID: s.ID, Writable: s.Writable, Protected: s.Password != nil,
+			ExpiresAt: s.ExpiresAt, CreatedAt: s.CreatedAt})
+	}
+	dropJSON(w, http.StatusOK, links)
 }
+
+type dropLinkReq struct {
+	Writable  *bool   `json:"writable"`
+	Password  *string `json:"password"`
+	ExpiresAt *string `json:"expiresAt"` // RFC 3339; "" removes the expiry
+}
+
+func (req *dropLinkReq) hashPassword() (*string, error) {
+	if req.Password == nil || *req.Password == "" {
+		return nil, nil
+	}
+	if len([]rune(*req.Password)) < 4 {
+		return nil, &apiError{err: errDropShortPass, code: http.StatusBadRequest}
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+	s := string(h)
+	return &s, nil
+}
+
+func (req *dropLinkReq) expiry() (*time.Time, error) {
+	if req.ExpiresAt == nil || *req.ExpiresAt == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+	if err != nil || t.Before(time.Now()) {
+		return nil, &apiError{err: errDropBadExpiry, code: http.StatusBadRequest}
+	}
+	t = t.UTC()
+	return &t, nil
+}
+
+func (d *dropService) createLink(w http.ResponseWriter, r *http.Request) {
+	share, err := d.ownerShare(r)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	var req dropLinkReq
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		dropError(w, &apiError{err: err, code: http.StatusBadRequest})
+		return
+	}
+	password, err := req.hashPassword()
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	expires, err := req.expiry()
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	writable := req.Writable != nil && *req.Writable
+	if writable && share.Type != api.FileShareInfoTypeFolder {
+		dropError(w, &apiError{err: errDropNotFolder, code: http.StatusBadRequest})
+		return
+	}
+	if writable && password == nil {
+		dropError(w, &apiError{err: errDropNoPassword, code: http.StatusBadRequest})
+		return
+	}
+	link := models.FileShare{FileId: share.FileId, UserId: share.UserId, Password: password,
+		ExpiresAt: expires, Writable: writable}
+	if err := d.api.db.Create(&link).Error; err != nil {
+		dropError(w, &apiError{err: err})
+		return
+	}
+	logging.Component("DROP").Info("drop.link_created", zap.String("link_id", link.ID), zap.Bool("writable", writable))
+	dropJSON(w, http.StatusCreated, dropLink{ID: link.ID, Writable: writable, Protected: password != nil,
+		ExpiresAt: expires, CreatedAt: link.CreatedAt})
+}
+
+// updateLink edits a single link (unlike FilesEditShare, which touches every
+// link of the folder) and evicts it from the share cache.
+func (d *dropService) updateLink(w http.ResponseWriter, r *http.Request) {
+	share, err := d.ownerShare(r)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	var req dropLinkReq
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		dropError(w, &apiError{err: err, code: http.StatusBadRequest})
+		return
+	}
+	linkID := chi.URLParam(r, "linkId")
+	var link models.FileShare
+	if !isUUID(linkID) || d.api.db.Where("id = ? AND file_id = ? AND user_id = ?", linkID, share.FileId, share.UserId).
+		First(&link).Error != nil {
+		dropError(w, &apiError{err: ErrShareNotFound, code: http.StatusNotFound})
+		return
+	}
+	updates := map[string]any{}
+	if req.Password != nil && *req.Password != "" {
+		password, err := req.hashPassword()
+		if err != nil {
+			dropError(w, err)
+			return
+		}
+		link.Password = password
+		updates["password"] = *password
+	}
+	if req.ExpiresAt != nil {
+		expires, err := req.expiry()
+		if err != nil {
+			dropError(w, err)
+			return
+		}
+		link.ExpiresAt = expires
+		updates["expires_at"] = expires
+	}
+	if req.Writable != nil {
+		link.Writable = *req.Writable
+		updates["writable"] = *req.Writable
+	}
+	if link.Writable && share.Type != api.FileShareInfoTypeFolder {
+		dropError(w, &apiError{err: errDropNotFolder, code: http.StatusBadRequest})
+		return
+	}
+	if link.Writable && link.Password == nil {
+		dropError(w, &apiError{err: errDropNoPassword, code: http.StatusBadRequest})
+		return
+	}
+	if len(updates) > 0 {
+		if err := d.api.db.Model(&models.FileShare{}).Where("id = ?", link.ID).Updates(updates).Error; err != nil {
+			dropError(w, &apiError{err: err})
+			return
+		}
+		d.api.cache.Delete(r.Context(), cache.KeyShare(link.ID))
+	}
+	dropJSON(w, http.StatusOK, dropLink{ID: link.ID, Writable: link.Writable, Protected: link.Password != nil,
+		ExpiresAt: link.ExpiresAt, CreatedAt: link.CreatedAt})
+}
+
+// deleteLink revokes a single link (FilesDeleteShare deletes them all).
+func (d *dropService) deleteLink(w http.ResponseWriter, r *http.Request) {
+	share, err := d.ownerShare(r)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	linkID := chi.URLParam(r, "linkId")
+	if !isUUID(linkID) {
+		dropError(w, &apiError{err: ErrShareNotFound, code: http.StatusNotFound})
+		return
+	}
+	res := d.api.db.Where("id = ? AND file_id = ? AND user_id = ?", linkID, share.FileId, share.UserId).
+		Delete(&models.FileShare{})
+	if res.Error != nil {
+		dropError(w, &apiError{err: res.Error})
+		return
+	}
+	if res.RowsAffected == 0 {
+		dropError(w, &apiError{err: ErrShareNotFound, code: http.StatusNotFound})
+		return
+	}
+	d.api.cache.Delete(r.Context(), cache.KeyShare(linkID))
+	logging.Component("DROP").Info("drop.link_revoked", zap.String("link_id", linkID))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- visitor holding a writable link: folders and renaming ----
+
+func (d *dropService) mkdir(w http.ResponseWriter, r *http.Request) {
+	share, err := d.share(r)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	var req struct {
+		Path string `json:"path"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		dropError(w, &apiError{err: err, code: http.StatusBadRequest})
+		return
+	}
+	name, ok := sanitizeDropName(req.Name)
+	if !ok {
+		dropError(w, &apiError{err: errDropBadName, code: http.StatusBadRequest})
+		return
+	}
+	parentID, err := d.resolveParent(share, req.Path)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	if taken, err := d.nameTaken(share.UserId, parentID, name, ""); err != nil || taken {
+		if err == nil {
+			err = &apiError{err: errDropNameTaken, code: http.StatusConflict}
+		}
+		dropError(w, err)
+		return
+	}
+	claims, err := d.ownerClaims(share.UserId)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	folder, err := d.api.FilesCreate(auth.WithClaims(r.Context(), claims), &api.File{
+		Name:     name,
+		Type:     api.FileTypeFolder,
+		ParentId: api.NewOptString(parentID),
+	})
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	logging.Component("DROP").Info("drop.mkdir", zap.String("share_id", share.ID), zap.String("name", name))
+	dropJSON(w, http.StatusCreated, map[string]any{"id": folder.ID.Value, "name": name})
+}
+
+func (d *dropService) rename(w http.ResponseWriter, r *http.Request) {
+	share, err := d.share(r)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		dropError(w, &apiError{err: err, code: http.StatusBadRequest})
+		return
+	}
+	name, ok := sanitizeDropName(req.Name)
+	if !ok {
+		dropError(w, &apiError{err: errDropBadName, code: http.StatusBadRequest})
+		return
+	}
+	// Only items inside the shared folder: neither the share root nor anything
+	// outside it (FilesUpdate performs no such check).
+	itemID := chi.URLParam(r, "itemId")
+	inside, err := d.isInShare(itemID, share.FileId, share.UserId)
+	if err != nil || !inside {
+		dropError(w, &apiError{err: errDropNoItem, code: http.StatusNotFound})
+		return
+	}
+	var item models.File
+	if err := d.api.db.Where("id = ? AND user_id = ? AND status = 'active'", itemID, share.UserId).
+		First(&item).Error; err != nil || item.ParentId == nil {
+		dropError(w, &apiError{err: errDropNoItem, code: http.StatusNotFound})
+		return
+	}
+	if item.Name == name {
+		dropJSON(w, http.StatusOK, map[string]any{"id": itemID, "name": name})
+		return
+	}
+	if taken, err := d.nameTaken(share.UserId, *item.ParentId, name, itemID); err != nil || taken {
+		if err == nil {
+			err = &apiError{err: errDropNameTaken, code: http.StatusConflict}
+		}
+		dropError(w, err)
+		return
+	}
+	claims, err := d.ownerClaims(share.UserId)
+	if err != nil {
+		dropError(w, err)
+		return
+	}
+	if _, err := d.api.FilesUpdate(auth.WithClaims(r.Context(), claims),
+		&api.FileUpdate{Name: api.NewOptString(name)}, api.FilesUpdateParams{ID: itemID}); err != nil {
+		dropError(w, err)
+		return
+	}
+	logging.Component("DROP").Info("drop.rename", zap.String("share_id", share.ID),
+		zap.String("from", item.Name), zap.String("to", name))
+	dropJSON(w, http.StatusOK, map[string]any{"id": itemID, "name": name})
+}
+
+// isInShare reports whether itemID is strictly inside folder rootID.
+func (d *dropService) isInShare(itemID, rootID string, userID int64) (bool, error) {
+	if !isUUID(itemID) {
+		return false, nil
+	}
+	var inside bool
+	err := d.api.db.Raw(`
+	WITH RECURSIVE up AS (
+		SELECT id, parent_id, 0 AS depth FROM teldrive.files
+		WHERE id = ? AND user_id = ? AND status = 'active'
+		UNION ALL
+		SELECT f.id, f.parent_id, up.depth + 1 FROM teldrive.files f
+		JOIN up ON f.id = up.parent_id
+		WHERE up.depth < 256
+	)
+	SELECT EXISTS (SELECT 1 FROM up WHERE parent_id = ?)`, itemID, userID, rootID).Scan(&inside).Error
+	return inside, err
+}
+
+// nameTaken reports whether an active item already has this name in the folder.
+func (d *dropService) nameTaken(userID int64, parentID, name, exceptID string) (bool, error) {
+	q := d.api.db.Model(&models.File{}).
+		Where("user_id = ? AND parent_id = ? AND name = ? AND status = 'active'", userID, parentID, name)
+	if exceptID != "" {
+		q = q.Where("id <> ?", exceptID)
+	}
+	var n int64
+	if err := q.Count(&n).Error; err != nil {
+		return false, &apiError{err: err}
+	}
+	return n > 0, nil
+}
+
+// ---- visitor holding a writable link: uploads ----
 
 func (d *dropService) begin(w http.ResponseWriter, r *http.Request) {
 	share, err := d.share(r)
@@ -227,6 +560,10 @@ func (d *dropService) begin(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Size <= 0 {
 		dropError(w, &apiError{err: errDropBadSize, code: http.StatusBadRequest})
+		return
+	}
+	if d.api.cnf.Drop.EncryptFiles && d.api.cnf.TG.Uploads.EncryptionKey == "" {
+		dropError(w, &apiError{err: errDropNoKey, code: http.StatusServiceUnavailable})
 		return
 	}
 	parentID, err := d.resolveParent(share, req.Path)
@@ -276,14 +613,13 @@ func (d *dropService) begin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// chunk recoit une tranche (?offset=N) du morceau {partNo}. Les tranches d'un
-// morceau doivent arriver dans l'ordre ; en cas d'ecart, la reponse 409 indique
-// ou reprendre.
+// chunk receives a chunk (?offset=N) of part {partNo}. Chunks of a part must
+// arrive in order; on a mismatch, a 409 response tells where to resume.
 func (d *dropService) chunk(w http.ResponseWriter, r *http.Request) {
-	// Une reponse anticipee (409, 401...) sans lire la tranche pousse le serveur
-	// a fermer la connexion : le client, encore en train d'envoyer, recoit une
-	// coupure au lieu de la reponse. On consomme donc le reste, dans la limite
-	// d'une tranche (au-dela, la requete n'est de toute facon pas legitime).
+	// Answering early (409, 401...) without reading the chunk makes the server
+	// close the connection: the client, still sending, gets a reset instead of
+	// the response. Drain the rest, up to one chunk (anything larger is not a
+	// legitimate request anyway).
 	defer io.CopyN(io.Discard, r.Body, int64(d.api.cnf.Drop.ChunkSize)+1<<20)
 
 	share, err := d.share(r)
@@ -299,7 +635,7 @@ func (d *dropService) chunk(w http.ResponseWriter, r *http.Request) {
 	partNo, err1 := strconv.Atoi(chi.URLParam(r, "partNo"))
 	offset, err2 := strconv.ParseInt(r.URL.Query().Get("offset"), 10, 64)
 	if err1 != nil || err2 != nil || r.ContentLength <= 0 {
-		dropError(w, &apiError{err: errors.New("parametres de tranche invalides"), code: http.StatusBadRequest})
+		dropError(w, &apiError{err: errDropBadChunk, code: http.StatusBadRequest})
 		return
 	}
 
@@ -320,7 +656,7 @@ func (d *dropService) chunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.ContentLength > part.size-part.written {
-		dropError(w, &apiError{err: errors.New("tranche plus grande que le morceau"), code: http.StatusBadRequest})
+		dropError(w, &apiError{err: errDropBigChunk, code: http.StatusBadRequest})
 		return
 	}
 
@@ -341,7 +677,7 @@ func (d *dropService) chunk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Morceau complet : on ferme le flux et on attend l'envoi du message Telegram.
+	// Part complete: close the stream and wait for the Telegram message.
 	part.pw.Close()
 	res := <-part.done
 	part.cancel()
@@ -360,8 +696,9 @@ func (d *dropService) chunk(w http.ResponseWriter, r *http.Request) {
 	dropJSON(w, http.StatusOK, map[string]any{"partNo": partNo, "received": part.size, "partDone": true})
 }
 
-// startPart lance l'envoi Telegram du morceau, alimente ensuite tranche par tranche.
-// Le contexte ne derive pas de la requete : il doit survivre a la tranche qui l'a demarre.
+// startPart starts the Telegram upload of a part, then fed chunk by chunk.
+// The context does not derive from the request: it must outlive the chunk
+// that started it.
 func (d *dropService) startPart(up *dropUpload, partNo int) *dropPart {
 	size := up.partSize
 	if partNo == up.parts {
@@ -378,6 +715,7 @@ func (d *dropService) startPart(up *dropUpload, partNo int) *dropPart {
 		FileName:      up.name,
 		PartNo:        partNo,
 		Hashing:       api.NewOptBool(true),
+		Encrypted:     api.NewOptBool(d.api.cnf.Drop.EncryptFiles),
 	}
 	if up.channelID != 0 {
 		params.ChannelId = api.NewOptInt64(up.channelID)
@@ -427,7 +765,7 @@ func (d *dropService) complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// FilesCreate ecrase un fichier homonyme : on choisit un nom libre.
+	// FilesCreate overwrites a file with the same name: pick a free name.
 	name, err := d.uniqueName(up.ownerID, up.parentID, up.name)
 	if err != nil {
 		dropError(w, err)
@@ -441,6 +779,7 @@ func (d *dropService) complete(w http.ResponseWriter, r *http.Request) {
 		ChannelId: api.NewOptInt64(up.channelID),
 		Size:      api.NewOptInt64(up.size),
 		MimeType:  api.NewOptString(up.mimeType),
+		Encrypted: api.NewOptBool(d.api.cnf.Drop.EncryptFiles),
 	})
 	if err != nil {
 		dropError(w, err)
@@ -452,8 +791,8 @@ func (d *dropService) complete(w http.ResponseWriter, r *http.Request) {
 	dropJSON(w, http.StatusCreated, map[string]any{"id": file.ID.Value, "name": name, "size": up.size})
 }
 
-// abort abandonne un envoi. Les morceaux deja poses restent dans la table uploads
-// et sont effaces de Telegram par la tache cleanUploads apres la retention.
+// abort drops an upload. Parts already sent stay in the uploads table and are
+// removed from Telegram by the cleanUploads job after the retention period.
 func (d *dropService) abort(w http.ResponseWriter, r *http.Request) {
 	share, err := d.share(r)
 	if err != nil {
@@ -480,7 +819,7 @@ func (d *dropService) janitor() {
 		d.mu.Lock()
 		for id, up := range d.uploads {
 			if !up.mu.TryLock() {
-				continue // une tranche est en cours de reception : l'envoi est actif
+				continue // a chunk is being received: the upload is active
 			}
 			if time.Since(up.lastSeen) > idle {
 				d.failPart(up, errDropIdle)
@@ -492,30 +831,31 @@ func (d *dropService) janitor() {
 	}
 }
 
-// share valide le lien pour un depot : existant, non expire, mot de passe fourni
-// et correct (via validFileShare), dossier, depot autorise.
+// share validates a link for a write operation: exists, not expired, password
+// provided and correct (through validFileShare), folder, writable.
 func (d *dropService) share(r *http.Request) (*fileShare, error) {
 	share, err := d.api.validFileShare(r, chi.URLParam(r, "id"))
 	if err != nil {
 		return nil, err
 	}
-	// Le partage est mis en cache sans expiration : on revalide la date ici.
+	// Shares are cached without TTL: re-check the expiry here.
 	if share.ExpiresAt != nil && share.ExpiresAt.Before(time.Now().UTC()) {
 		return nil, &apiError{err: ErrShareExpired, code: http.StatusNotFound}
 	}
 	if share.Type != api.FileShareInfoTypeFolder {
 		return nil, &apiError{err: errDropNotFolder, code: http.StatusBadRequest}
 	}
+	if !share.Writable {
+		return nil, &apiError{err: errDropReadOnly, code: http.StatusForbidden}
+	}
+	// Enforced when a link is made writable; kept here as a safety net.
 	if share.Password == nil {
 		return nil, &apiError{err: errDropNoPassword, code: http.StatusForbidden}
-	}
-	if !share.AllowUpload {
-		return nil, &apiError{err: errDropDisabled, code: http.StatusForbidden}
 	}
 	return share, nil
 }
 
-// owner identifie un utilisateur teldrive connecte (cookie de l'interface ou Bearer).
+// owner identifies a logged-in teldrive user (UI cookie or Bearer token).
 func (d *dropService) owner(r *http.Request) (int64, bool) {
 	token := ""
 	if c, err := r.Cookie("access_token"); err == nil {
@@ -534,8 +874,8 @@ func (d *dropService) owner(r *http.Request) (int64, bool) {
 	return id, err == nil
 }
 
-// ownerClaims reconstitue l'identite du proprietaire a partir de sa derniere
-// session, comme le fait la tache de nettoyage.
+// ownerClaims rebuilds the owner's identity from their latest session, as the
+// cleanup job does.
 func (d *dropService) ownerClaims(userID int64) (*types.JWTClaims, error) {
 	var s models.Session
 	if err := d.api.db.Where("user_id = ?", userID).Order("created_at DESC").First(&s).Error; err != nil {
@@ -548,8 +888,8 @@ func (d *dropService) ownerClaims(userID int64) (*types.JWTClaims, error) {
 	}, nil
 }
 
-// resolveParent traduit un chemin relatif au dossier partage en identifiant de
-// dossier. path.Clean empeche de remonter au-dessus de la racine du partage.
+// resolveParent maps a path relative to the shared folder to a folder ID.
+// path.Clean prevents climbing above the root of the share.
 func (d *dropService) resolveParent(share *fileShare, rel string) (string, error) {
 	clean := path.Clean("/" + strings.ReplaceAll(rel, "\\", "/"))
 	if clean == "/" {
@@ -572,18 +912,16 @@ func (d *dropService) uniqueName(userID int64, parentID, name string) (string, e
 	base := strings.TrimSuffix(name, ext)
 	candidate := name
 	for i := 2; i <= 1000; i++ {
-		var n int64
-		if err := d.api.db.Model(&models.File{}).
-			Where("user_id = ? AND parent_id = ? AND name = ? AND status = 'active'", userID, parentID, candidate).
-			Count(&n).Error; err != nil {
-			return "", &apiError{err: err}
+		taken, err := d.nameTaken(userID, parentID, candidate, "")
+		if err != nil {
+			return "", err
 		}
-		if n == 0 {
+		if !taken {
 			return candidate, nil
 		}
 		candidate = fmt.Sprintf("%s (%d)%s", base, i, ext)
 	}
-	return "", &apiError{err: errors.New("trop de fichiers homonymes"), code: http.StatusConflict}
+	return "", &apiError{err: errDropTooMany, code: http.StatusConflict}
 }
 
 func (d *dropService) partName(up *dropUpload, partNo int) string {
@@ -665,7 +1003,7 @@ func dropError(w http.ResponseWriter, err error) {
 	dropJSON(w, code, map[string]any{"error": err.Error()})
 }
 
-// dropResume repond 409 en indiquant au navigateur ou reprendre l'envoi.
+// dropResume answers 409 and tells the browser where to resume the upload.
 func dropResume(w http.ResponseWriter, partNo int, offset int64, cause error) {
 	body := map[string]any{"expectedPart": partNo, "expectedOffset": offset}
 	if cause != nil {
