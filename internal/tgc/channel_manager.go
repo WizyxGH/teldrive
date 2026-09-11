@@ -306,17 +306,14 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 					payload := &tg.ChannelsEditAdminRequest{
 						Channel: channel,
 						UserID:  tg.InputUserClass(&tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash}),
+						// Least privilege: bots only post parts and read them back
+						// (reading needs admin status, not a specific right).
+						// Deletions (cleanup jobs) go through the user session.
+						// A leaked bot token must not let anyone invite themselves
+						// into the channel, delete the archive or change the channel.
+						// Re-applied on every call, so existing bots get narrowed too.
 						AdminRights: tg.ChatAdminRights{
-							ChangeInfo:     true,
-							PostMessages:   true,
-							EditMessages:   true,
-							DeleteMessages: true,
-							BanUsers:       true,
-							InviteUsers:    true,
-							PinMessages:    true,
-							ManageCall:     true,
-							Other:          true,
-							ManageTopics:   true,
+							PostMessages: true,
 						},
 						Rank: "bot",
 					}

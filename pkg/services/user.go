@@ -15,11 +15,13 @@ import (
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/models"
 
 	"github.com/gotd/contrib/storage"
+	"go.uber.org/zap"
 	"gorm.io/gorm/clause"
 )
 
@@ -40,7 +42,12 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 		}
 		if len(channels) > 0 {
 			for _, channel := range channels {
-				a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false)
+				// Used to be silently ignored: a bot that failed to become admin
+				// only showed up later as failing uploads.
+				if err := a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false); err != nil {
+					logging.Component("USER").Error("bots.add_to_channel_failed",
+						zap.Int64("channel_id", channel), zap.Error(err))
+				}
 			}
 		}
 		a.cache.Delete(ctx, cache.KeyUserBots(userID))
