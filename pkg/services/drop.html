@@ -657,7 +657,11 @@
   $('gateForm').onsubmit = async (e) => {
     e.preventDefault();
     show('gateErr', false);
-    if (!(await tryUnlock($('password').value))) show('gateErr');
+    const typed = $('password').value;
+    // Pasted passwords often carry a stray space: retry without it.
+    if (await tryUnlock(typed)) return;
+    if (typed.trim() !== typed && typed.trim() && await tryUnlock(typed.trim())) return;
+    show('gateErr');
   };
 
   async function openDir(p) {
