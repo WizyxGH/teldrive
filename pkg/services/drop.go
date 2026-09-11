@@ -139,7 +139,11 @@ func RegisterDropRoutes(r chi.Router, a *apiService) {
 	d := &dropService{api: a, uploads: map[string]*dropUpload{}}
 	go d.janitor()
 
+	// Same page, two views: visitors (/drop/{id}) and the owner's link
+	// manager (/drop/{id}/manage), so access settings never sit next to the
+	// visitor's password prompt.
 	r.Get("/drop/{id}", d.page)
+	r.Get("/drop/{id}/manage", d.page)
 	r.Route("/api/drop/{id}", func(r chi.Router) {
 		r.Get("/", d.info)
 		// owner: links of the folder

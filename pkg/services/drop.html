@@ -237,13 +237,16 @@
 <body>
 <header class="appbar">
   <div class="brand"><span data-icon="logo"></span><span>Teldrive</span></div>
+  <!-- owner only: switch between the visitor view and the link manager -->
+  <a class="btn tonal" id="manageBtn" hidden><span data-icon="key"></span>Manage access</a>
+  <a class="btn" id="folderBtn" hidden><span data-icon="folder"></span>Open as visitor</a>
   <button class="icon-btn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme"></button>
 </header>
 
 <main>
   <div class="page-head" id="head" hidden>
     <div>
-      <p class="overline body-small variant">Shared folder</p>
+      <p class="overline body-small variant" id="overline">Shared folder</p>
       <h1 class="headline-small" id="title"></h1>
       <p class="variant" id="subtitle" style="margin:4px 0 0"></p>
     </div>
@@ -253,13 +256,14 @@
   <section class="card center-card" id="closed" hidden>
     <div class="tile-lg"><span data-icon="info"></span></div>
     <p class="body-large" id="closedMsg" style="margin:0"></p>
+    <a class="btn filled" id="closedAction" hidden></a>
   </section>
 
   <section class="card" id="owner" hidden>
     <div class="card-head">
       <div>
-        <h2 class="title-medium">Access to this folder</h2>
-        <p class="variant" style="margin:4px 0 0">Each link has its own password and access level. Only you can see this section.</p>
+        <h2 class="title-medium">Links</h2>
+        <p class="variant" style="margin:4px 0 0">Each link has its own password and access level. Give read-only links to some people and read &amp; write links to others.</p>
       </div>
       <button class="btn tonal" id="newLink" type="button"><span data-icon="add"></span>New link</button>
     </div>
@@ -376,7 +380,9 @@
   };
   paintThemeBtn();
 
-  const shareId = location.pathname.split('/').filter(Boolean).pop();
+  // /drop/{id} = visitor view, /drop/{id}/manage = owner's link manager.
+  const [, shareId, view] = location.pathname.split('/').filter(Boolean);
+  const manage = view === 'manage';
   const api = `/api/drop/${encodeURIComponent(shareId)}`;
   const sharesApi = `/api/shares/${encodeURIComponent(shareId)}`;
   const $ = (id) => document.getElementById(id);
@@ -473,8 +479,13 @@
     });
   }
 
-  function closed(text) {
+  function closed(text, action) {
     $('closedMsg').textContent = text;
+    if (action) {
+      $('closedAction').textContent = action.label;
+      $('closedAction').href = action.href;
+    }
+    show('closedAction', !!action);
     show('closed');
   }
 
@@ -485,11 +496,17 @@
     info = body;
     document.title = `${info.name} · Teldrive`;
     $('title').textContent = info.name;
-    $('subtitle').textContent = info.expiresAt ? `Link valid until ${day(info.expiresAt)}` : '';
-    show('subtitle', !!info.expiresAt);
     show('head');
     $('viewer').href = `/share/${encodeURIComponent(shareId)}`;
-    if (info.isOwner) loadLinks();
+    if (manage) return initManage();
+
+    // Visitor view. The owner only gets a way to the link manager.
+    if (info.isOwner) {
+      $('manageBtn').href = `/drop/${encodeURIComponent(shareId)}/manage`;
+      show('manageBtn');
+    }
+    $('subtitle').textContent = info.expiresAt ? `Link valid until ${day(info.expiresAt)}` : '';
+    show('subtitle', !!info.expiresAt);
     if (!info.folder) return closed('This link points to a single file. Open it in the viewer.');
 
     if (!info.protected) return open(null);
@@ -500,18 +517,33 @@
     $('password').focus();
   }
 
-  // ---- owner: links ----
+  // ---- owner: link manager (/manage) ----
+  let links = [];
+
+  function initManage() {
+    $('overline').textContent = 'Manage access';
+    show('subtitle', false);
+    if (!info.isOwner) {
+      return closed('Only the owner of this folder can manage its access. Log in to teldrive in this browser, then open this page again.',
+        { label: 'Log in to teldrive', href: '/login' });
+    }
+    $('folderBtn').href = `/drop/${encodeURIComponent(shareId)}`;
+    show('folderBtn');
+    loadLinks();
+  }
+
   async function loadLinks() {
     show('owner');
     const res = await fetch(`${api}/links`, { credentials: 'same-origin' });
-    const links = await json(res);
+    const body = await json(res);
     const list = $('links');
     list.replaceChildren();
-    if (!res.ok) return snack(links.error || 'Could not load the links.');
+    if (!res.ok) return snack(body.error || 'Could not load the links.');
+    links = body;
     for (const l of links) {
       const url = `${location.origin}/drop/${l.id}`;
       const sub = [l.protected ? 'Password' : 'No password', l.expiresAt ? `Expires ${day(l.expiresAt)}` : 'No expiry'];
-      if (l.id === shareId) sub.push('This page');
+      if (l.id === shareId) sub.push('Opened from this link');
       const tile = el('span', { className: 'tile' + (l.writable ? ' accent' : '') });
       tile.append(icon(l.writable ? 'edit' : 'visibility'));
       list.append(el('li', { className: 'row link-row' }, tile,
@@ -533,7 +565,6 @@
     const r = await fetch(`${api}/links/${id}`, { method: 'PATCH', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
     if (!r.ok) { snack((await json(r)).error || 'Update failed.'); return false; }
-    if (id === shareId) { location.reload(); return true; }
     loadLinks();
     return true;
   }
@@ -558,12 +589,18 @@
   }
 
   async function revokeLink(l) {
-    const self = l.id === shareId ? '\n\nThis is the link of this page: it will stop working.' : '';
-    const v = await dialog({ title: 'Revoke link?', text: 'People using this link will lose access.' + self, ok: 'Revoke', danger: true });
+    const v = await dialog({ title: 'Revoke link?', text: 'People using this link will lose access.', ok: 'Revoke', danger: true });
     if (!v) return;
     const r = await fetch(`${api}/links/${l.id}`, { method: 'DELETE', credentials: 'same-origin' });
     if (!r.ok) return snack((await json(r)).error || 'Could not revoke the link.');
-    if (l.id === shareId) return location.reload();
+    if (l.id === shareId) {
+      // This page's address used that link: continue from another one.
+      const other = links.find((x) => x.id !== l.id);
+      if (other) return location.replace(`/drop/${encodeURIComponent(other.id)}/manage`);
+      $('owner').hidden = true;
+      show('folderBtn', false);
+      return closed('This folder has no link left. Share it again from teldrive to create a new one.');
+    }
     snack('Link revoked');
     loadLinks();
   }
